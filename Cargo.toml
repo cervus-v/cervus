@@ -1,0 +1,10 @@
+[package]
+name = "wasm-linux"
+version = "0.1.0"
+authors = ["losfair <zhy20000919@hotmail.com>"]
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+hexagon-e = "0.1.0"
