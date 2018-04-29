@@ -10,7 +10,9 @@ use hexagon_e::error::*;
 pub struct ResourceHolder {
     kctx: *mut u8,
     max_mem: usize,
+    max_slots: usize,
     mem: BoxedSlice<u8>,
+    slots: BoxedSlice<i64>,
     stack: BoxedSlice<Cell<i64>>,
     call_stack: BoxedSlice<Cell<i64>>
 }
@@ -18,7 +20,9 @@ pub struct ResourceHolder {
 pub struct ExecutionEnv<'a> {
     kctx: *mut u8,
     max_mem: usize,
+    max_slots: usize,
     mem: &'a mut BoxedSlice<u8>,
+    slots: &'a mut BoxedSlice<i64>,
     stack: Tape<'a, Cell<i64>>,
     call_stack: Tape<'a, Cell<i64>>
 }
@@ -37,7 +41,9 @@ impl<'a> ExecutionEnv<'a> {
         ExecutionEnv {
             kctx: rh.kctx,
             max_mem: rh.max_mem,
+            max_slots: rh.max_slots,
             mem: &mut rh.mem,
+            slots: &mut rh.slots,
             stack: Tape::from(&*rh.stack),
             call_stack: Tape::from(&*rh.call_stack)
         }
@@ -67,6 +73,27 @@ impl<'a> Environment for ExecutionEnv<'a> {
         // new_mem.len() >= self.mem.len() holds here.
         new_mem[0..self.mem.len()].copy_from_slice(&self.mem);
         *self.mem = new_mem;
+
+        Ok(())
+    }
+
+    fn get_slots(&self) -> &[i64] {
+        &self.slots
+    }
+
+    fn get_slots_mut(&mut self) -> &mut [i64] {
+        &mut self.slots
+    }
+
+    fn reset_slots(&mut self, len: usize) -> ExecuteResult<()> {
+        if len > self.max_slots {
+            return Err(ExecuteError::Generic);
+        }
+
+        *self.slots = match BoxedSlice::new(|| 0, len) {
+            Some(v) => v,
+            None => return Err(ExecuteError::Generic)
+        };
 
         Ok(())
     }
@@ -114,6 +141,7 @@ pub struct EnvConfig {
     pub kctx: *mut u8,
     pub memory_default_len: usize,
     pub memory_max_len: usize,
+    pub max_slots: usize,
     pub stack_len: usize,
     pub call_stack_len: usize
 }
@@ -121,6 +149,7 @@ pub struct EnvConfig {
 impl EnvConfig {
     pub fn is_valid(&self) -> bool {
         if self.memory_default_len == 0 || self.memory_max_len == 0
+            || self.max_slots == 0
             || self.stack_len == 0 || self.call_stack_len == 0 {
             false
         } else {
@@ -137,7 +166,9 @@ impl ResourceHolder {
             Some(ResourceHolder {
                 kctx: config.kctx,
                 max_mem: config.memory_max_len,
+                max_slots: config.max_slots,
                 mem: try_option!(BoxedSlice::new(|| 0, config.memory_default_len)),
+                slots: try_option!(BoxedSlice::new(|| 0, 0)),
                 stack: try_option!(BoxedSlice::new(|| Cell::new(0), config.stack_len)),
                 call_stack: try_option!(BoxedSlice::new(|| Cell::new(0), config.call_stack_len))
             })

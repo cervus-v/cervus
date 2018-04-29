@@ -5,6 +5,7 @@ extern crate hexagon_e;
 
 pub mod linux;
 pub mod env;
+pub mod stub;
 
 use hexagon_e::error::*;
 
@@ -14,11 +15,13 @@ pub extern "C" fn panic_fmt(_args: core::fmt::Arguments, _file: &'static str, _l
     linux::kernel_panic(_file);
 }
 
-pub extern "C" fn run(
+#[no_mangle]
+pub extern "C" fn run_code(
     code_base: *const u8,
     code_len: usize,
     mem_default_len: usize,
     mem_max_len: usize,
+    max_slots: usize,
     stack_len: usize,
     call_stack_len: usize,
     kctx: *mut u8
@@ -43,6 +46,7 @@ pub extern "C" fn run(
         kctx: kctx,
         memory_default_len: mem_default_len,
         memory_max_len: mem_max_len,
+        max_slots: max_slots,
         stack_len: stack_len,
         call_stack_len: call_stack_len
     };

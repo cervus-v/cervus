@@ -11,6 +11,7 @@
 	"panic-strategy": "abort",
 	"disable-redzone": true,
 	"eliminate-frame-pointer": false,
+	"no-compiler-rt": true,
 	"code-model": "kernel",
 	"relocation-model": "static"
 }
