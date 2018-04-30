@@ -7,4 +7,4 @@ authors = ["losfair <zhy20000919@hotmail.com>"]
 crate-type = ["staticlib"]
 
 [dependencies]
-hexagon-e = "0.1.2"
+hexagon-e = "0.1.3"
