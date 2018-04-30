@@ -2,5 +2,8 @@
 name = "usermode"
 version = "0.1.0"
 authors = ["losfair <zhy20000919@hotmail.com>"]
+description = "Cervus usermode API library"
+license = "MIT"
+repository = "https://github.com/cervus-v/cervus"
 
 [dependencies]
