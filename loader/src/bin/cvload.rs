@@ -21,7 +21,6 @@ fn main() {
     args.next().unwrap();
 
     let path = args.next().expect("Path required");
-    let entry_fn_name = args.next().expect("Entry function required");
     let mut f = File::open(&path).unwrap();
     let mut code: Vec<u8> = Vec::new();
 
@@ -29,7 +28,7 @@ fn main() {
 
     f.read_to_end(&mut code).unwrap();
     let module = wasm_core::trans::translate_module_raw(code.as_slice(), cfg);
-    let entry_fn = module.lookup_exported_func(&entry_fn_name).expect("Entry function not found");
+    let entry_fn = module.lookup_exported_func("__cv_main").expect("Entry function `__cv_main` not found");
 
     let result = translate_module(&module, entry_fn);
     let loader: File = File::open("/dev/cvctl").unwrap();

@@ -33,7 +33,6 @@ pub enum LogLevel {
     Info
 }
 
-#[inline(always)]
 pub fn log(level: LogLevel, text: &str) {
     let level: i32 = match level {
         LogLevel::Error => 1,
