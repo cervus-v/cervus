@@ -28,6 +28,51 @@ Cervus implements a WebAssembly "usermode" on top of the Linux kernel (which tri
 - JIT
 - Everything else
 
+## Build
+
+### Kernel module
+
+Requirements:
+
+- xargo
+- latest nightly rust
+- kernel headers
+- gnu make & gcc
+
+```
+xargo build --target x86_64-unknown-none-gnu --release
+cd glue
+./build.sh
+sudo insmod cervus.ko
+```
+
+### Loader
+
+This installs the `cvload` binary:
+
+```
+cd loader
+cargo install
+```
+
+### Applications
+
+`usermode/examples` contains a few examples for WebAssembly applications running in Cervus.
+
+For example, to build and load the `hello_world` example:
+
+```
+cd usermode
+cargo build --example hello_world --target wasm32-unknown-unknown --release
+sudo cvload target/wasm32-unknown-unknown/release/examples/hello_world.wasm
+```
+
+And then run `dmesg | tail`. If everything works well, you should see something like:
+
+```
+[132382.502249] cervus: (20277) [INFO] Hello, world!
+```
+
 ## Contribute
 
 I'm busy with my College Entrance Examination until ~June 10, 2018, before which I cannot actively maintain this project. However, there are a few things that can be relatively easily worked on:
