@@ -10,4 +10,4 @@ ar x libwasm_linux.a
 rm libwasm_linux.a
 cd ..
 
-OBJ_LIST=$(echo rkm/core-*.o rkm/wasm_linux-*.o rkm/hexagon_e-*.o) make
+OBJ_LIST=$(echo rkm/core-*.o rkm/alloc-*.o rkm/wasm_linux-*.o rkm/hexagon_e-*.o) make

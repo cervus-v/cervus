@@ -1,5 +1,5 @@
 obj-m += waks.o
-waks-objs += waks-entry.o $(OBJ_LIST)
+waks-objs += waks-entry.o uapi.o $(OBJ_LIST)
 HDR_PATH := /lib/modules/$(shell uname -r)/build
 
 all:
