@@ -42,7 +42,7 @@ fn run_in_usermode_context<B: Backend<Config = G>, G>(
 }
 
 #[no_mangle]
-pub extern "C" fn run_code(
+pub extern "C" fn run_code_in_hexagon_e(
     code_base: *const u8,
     code_len: usize,
     mem_default_len: usize,
@@ -61,7 +61,7 @@ pub extern "C" fn run_code(
         call_stack_len: call_stack_len
     };
 
-    println!("waks: loading code with configuration {:?}", config);
+    println!("loading code with configuration {:?}", config);
 
     let result = run_in_usermode_context::<backend::hexagon_e::HexagonEBackend, _>(
         code,
