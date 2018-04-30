@@ -1,18 +1,44 @@
 #![feature(lang_items)]
+#![feature(alloc)]
+#![feature(global_allocator, allocator_api)]
 #![no_std]
 
 extern crate hexagon_e;
 
+#[macro_use]
+extern crate alloc;
+
+#[macro_use]
 pub mod linux;
+
 pub mod env;
 pub mod stub;
+pub mod allocator;
+pub mod uapi;
+pub mod backend;
 
-use hexagon_e::error::*;
+use allocator::KernelAllocator;
+
+#[global_allocator]
+pub static ALLOCATOR: KernelAllocator = KernelAllocator;
+
+use backend::common::*;
 
 #[lang = "panic_fmt"]
 #[no_mangle]
 pub extern "C" fn panic_fmt(_args: core::fmt::Arguments, _file: &'static str, _line: u32) -> ! {
     linux::kernel_panic(_file);
+}
+
+fn run_in_usermode_context<B: Backend<Config = G>, G>(
+    code: &[u8],
+    config: G,
+    kctx: *mut u8
+) -> BackendResult<()> {
+    let mut executor = B::new(config)?;
+    let mut context = env::UsermodeContext::new(kctx);
+    executor.run(code, &mut context)?;
+    Ok(())
 }
 
 #[no_mangle]
@@ -26,24 +52,8 @@ pub extern "C" fn run_code(
     call_stack_len: usize,
     kctx: *mut u8
 ) -> i32 {
-    fn run_inner(code: &[u8], config: env::EnvConfig) -> ExecuteResult<()> {
-        let m = hexagon_e::module::Module::from_raw(code)?;
-        let mut rh = match env::ResourceHolder::new(config) {
-            Some(v) => v,
-            None => return Err(ExecuteError::Generic)
-        };
-        let env = env::ExecutionEnv::new(&mut rh);
-
-        let mut vm = hexagon_e::vm::VirtualMachine::new(&m, env);
-        vm.run_memory_initializers()?;
-        vm.run()?;
-
-        Ok(())
-    }
-
     let code = unsafe { ::core::slice::from_raw_parts(code_base, code_len) };
-    let config = env::EnvConfig {
-        kctx: kctx,
+    let config = backend::hexagon_e::EnvConfig {
         memory_default_len: mem_default_len,
         memory_max_len: mem_max_len,
         max_slots: max_slots,
@@ -51,10 +61,16 @@ pub extern "C" fn run_code(
         call_stack_len: call_stack_len
     };
 
-    let result = run_inner(code, config);
+    println!("waks: loading code with configuration {:?}", config);
+
+    let result = run_in_usermode_context::<backend::hexagon_e::HexagonEBackend, _>(
+        code,
+        config,
+        kctx
+    );
 
     match result {
         Ok(_) => 0,
-        Err(_) => -1
+        Err(e) => e.status()
     }
 }
