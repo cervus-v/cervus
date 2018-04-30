@@ -32,7 +32,7 @@ fn main() {
     let entry_fn = module.lookup_exported_func(&entry_fn_name).expect("Entry function not found");
 
     let result = translate_module(&module, entry_fn);
-    let loader: File = File::open("/dev/waksctl").unwrap();
+    let loader: File = File::open("/dev/cvctl").unwrap();
 
     eprintln!("Code length: {}", result.len());
     let fd = loader.as_raw_fd();

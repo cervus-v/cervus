@@ -10,11 +10,11 @@
 #include <linux/uaccess.h>
 #include <linux/kthread.h>
 
-#define WAKS_LOAD_CODE 1
+#define CERVUS_LOAD_CODE 1
 #define EXEC_HEXAGON_E 1
 
-const char *CLASS_NAME = "waks";
-const char *DEVICE_NAME = "waksctl";
+const char *CLASS_NAME = "cervus";
+const char *DEVICE_NAME = "cvctl";
 
 static int major_number;
 static struct class *dev_class = NULL;
@@ -71,16 +71,16 @@ int execution_worker(void *data) {
 
         default:
             ret = -1;
-            printk(KERN_INFO "waks: Unknown executor: %d\n", einfo -> executor);
+            printk(KERN_INFO "cervus: Unknown executor: %d\n", einfo -> executor);
     }
 
-    printk(KERN_INFO "waks: (%d) WebAssembly application exited with code %d\n", task_pid_nr(current), ret);
+    printk(KERN_INFO "cervus: (%d) WebAssembly application exited with code %d\n", task_pid_nr(current), ret);
     vfree(einfo);
 
     return 0;
 }
 
-static struct file_operations waks_ops = {
+static struct file_operations cervus_ops = {
     .open = wd_open,
     .read = wd_read,
     .write = wd_write,
@@ -89,16 +89,16 @@ static struct file_operations waks_ops = {
 };
 
 int uapi_init(void) {
-    major_number = register_chrdev(0, DEVICE_NAME, &waks_ops);
+    major_number = register_chrdev(0, DEVICE_NAME, &cervus_ops);
     if(major_number < 0) {
-        printk(KERN_ALERT "waks: Device registration failed\n");
+        printk(KERN_ALERT "cervus: Device registration failed\n");
         return major_number;
     }
 
     dev_class = class_create(THIS_MODULE, CLASS_NAME);
     if(IS_ERR(dev_class)) {
         unregister_chrdev(major_number, DEVICE_NAME);
-        printk(KERN_ALERT "waks: Device class creation failed\n");
+        printk(KERN_ALERT "cervus: Device class creation failed\n");
         return PTR_ERR(dev_class);
     }
 
@@ -112,11 +112,11 @@ int uapi_init(void) {
     if(IS_ERR(dev_handle)) {
         class_destroy(dev_class);
         unregister_chrdev(major_number, DEVICE_NAME);
-        printk(KERN_ALERT "waks: Device creation failed\n");
+        printk(KERN_ALERT "cervus: Device creation failed\n");
         return PTR_ERR(dev_handle);
     }
 
-    printk(KERN_INFO "waks: UAPI initialized\n");
+    printk(KERN_INFO "cervus: uapi initialized\n");
     uapi_initialized = 1;
 
     return 0;
@@ -176,7 +176,7 @@ static ssize_t handle_load_code(struct file *_file, void *arg) {
     }
 
     if(IS_ERR(
-        kthread_run(execution_worker, einfo, "waks-worker")
+        kthread_run(execution_worker, einfo, "cervus-worker")
     )) {
         vfree(einfo);
         return -ENOMEM;
@@ -189,7 +189,7 @@ static ssize_t handle_load_code(struct file *_file, void *arg) {
 
 static ssize_t wd_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
     switch(cmd) {
-        DISPATCH_CMD(WAKS_LOAD_CODE, handle_load_code)
+        DISPATCH_CMD(CERVUS_LOAD_CODE, handle_load_code)
         default:
             return -EINVAL;
     }
