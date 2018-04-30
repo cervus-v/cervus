@@ -10,8 +10,11 @@
 #include <linux/uaccess.h>
 #include <linux/kthread.h>
 
+#define WAKS_LOAD_CODE 1
+#define EXEC_HEXAGON_E 1
+
 const char *CLASS_NAME = "waks";
-const char *DEVICE_NAME = "waks_load";
+const char *DEVICE_NAME = "waksctl";
 
 static int major_number;
 static struct class *dev_class = NULL;
@@ -24,8 +27,9 @@ static int wd_open(struct inode *, struct file *);
 static int wd_release(struct inode *, struct file *);
 static ssize_t wd_read(struct file *, char *, size_t, loff_t *);
 static ssize_t wd_write(struct file *, const char *, size_t, loff_t *);
+static ssize_t wd_ioctl(struct file *, unsigned int cmd, unsigned long arg);
 
-extern int run_code(
+extern int run_code_in_hexagon_e(
     const unsigned char *code_base,
     size_t code_len,
     size_t mem_default_len,
@@ -37,6 +41,7 @@ extern int run_code(
 );
 
 struct execution_info {
+    int executor;
     size_t len;
     char code[0];
 };
@@ -48,20 +53,28 @@ int execution_worker(void *data) {
     einfo = data;
 
     allow_signal(SIGKILL);
+    //allow_signal(SIGTERM);
 
-    ret = run_code(
-        einfo -> code,
-        einfo -> len,
-        1048576,
-        1048576 * 16,
-        16384,
-        1024,
-        1024,
-        NULL
-    );
+    switch(einfo -> executor) {
+        case EXEC_HEXAGON_E:
+            ret = run_code_in_hexagon_e(
+                einfo -> code,
+                einfo -> len,
+                1048576,
+                1048576 * 16,
+                16384,
+                1024,
+                1024,
+                NULL
+            );
+            break;
 
-    printk(KERN_INFO "WebAssembly application exited with code %d\n", ret);
+        default:
+            ret = -1;
+            printk(KERN_INFO "waks: Unknown executor: %d\n", einfo -> executor);
+    }
 
+    printk(KERN_INFO "waks: (%d) WebAssembly application exited with code %d\n", task_pid_nr(current), ret);
     vfree(einfo);
 
     return 0;
@@ -71,20 +84,21 @@ static struct file_operations waks_ops = {
     .open = wd_open,
     .read = wd_read,
     .write = wd_write,
-    .release = wd_release
+    .release = wd_release,
+    .unlocked_ioctl = wd_ioctl
 };
 
 int uapi_init(void) {
     major_number = register_chrdev(0, DEVICE_NAME, &waks_ops);
     if(major_number < 0) {
-        printk(KERN_ALERT "waks::exec_backend: Device registration failed\n");
+        printk(KERN_ALERT "waks: Device registration failed\n");
         return major_number;
     }
 
     dev_class = class_create(THIS_MODULE, CLASS_NAME);
     if(IS_ERR(dev_class)) {
         unregister_chrdev(major_number, DEVICE_NAME);
-        printk(KERN_ALERT "waks::exec_backend: Device class creation failed\n");
+        printk(KERN_ALERT "waks: Device class creation failed\n");
         return PTR_ERR(dev_class);
     }
 
@@ -98,11 +112,11 @@ int uapi_init(void) {
     if(IS_ERR(dev_handle)) {
         class_destroy(dev_class);
         unregister_chrdev(major_number, DEVICE_NAME);
-        printk(KERN_ALERT "waks::exec_backend: Device creation failed\n");
+        printk(KERN_ALERT "waks: Device creation failed\n");
         return PTR_ERR(dev_handle);
     }
 
-    printk(KERN_INFO "waks::exec_backend: UAPI initialized\n");
+    printk(KERN_INFO "waks: UAPI initialized\n");
     uapi_initialized = 1;
 
     return 0;
@@ -132,27 +146,53 @@ static ssize_t wd_read(struct file *_file, char *_data, size_t _len, loff_t *_of
 }
 
 static ssize_t wd_write(struct file *_file, const char *data, size_t len, loff_t *offset) {
+    return -EINVAL;
+}
+
+struct load_code_info {
+    int executor;
+    unsigned long len;
+    void *addr;
+};
+
+static ssize_t handle_load_code(struct file *_file, void *arg) {
+    struct load_code_info lci;
     struct execution_info *einfo;
 
-    if(len > 1048576 * 16) {
-        return -EINVAL;
+    if(copy_from_user(&lci, arg, sizeof(struct load_code_info))) {
+        return -EFAULT;
     }
 
-    printk(KERN_INFO "wd_write: Code length: %lu\n", len);
-
-    einfo = vmalloc(sizeof(struct execution_info) + len);
+    einfo = vmalloc(sizeof(struct execution_info) + lci.len);
     if(einfo == NULL) {
         return -ENOMEM;
     }
 
-    einfo -> len = len;
-
-    if(copy_from_user(einfo -> code, data, len)) {
+    einfo -> executor = lci.executor;
+    einfo -> len = lci.len;
+    if(copy_from_user(einfo -> code, lci.addr, lci.len)) {
         vfree(einfo);
         return -EFAULT;
     }
 
-    kthread_run(execution_worker, einfo, "[anonymous webassembly application]");
+    if(IS_ERR(
+        kthread_run(execution_worker, einfo, "waks-worker")
+    )) {
+        vfree(einfo);
+        return -ENOMEM;
+    }
 
-    return len;
+    return 0;
+}
+
+#define DISPATCH_CMD(cmd, f) case cmd: return (f)(file, (void *) arg);
+
+static ssize_t wd_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
+    switch(cmd) {
+        DISPATCH_CMD(WAKS_LOAD_CODE, handle_load_code)
+        default:
+            return -EINVAL;
+    }
+
+    return -EINVAL;
 }

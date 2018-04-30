@@ -4,8 +4,10 @@
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
 
+// FIXME: Return -1 on SIGKILL only
 #define CHK_FATAL_SIGNAL() \
-    if(fatal_signal_pending(current)) { \
+    if(signal_pending(current)) { \
+        printk(KERN_INFO "waks: (%d) Terminating execution due to signal\n", task_pid_nr(current)); \
         return -1; \
     }
 
@@ -15,7 +17,7 @@ extern void uapi_cleanup(void);
 void *_GLOBAL_OFFSET_TABLE_ = NULL;
 
 void lapi_printk(const char *base, size_t len) {
-    printk("%.*s\n", (int) len, base);
+    printk(KERN_INFO "waks: %.*s\n", (int) len, base);
 }
 
 unsigned char * lapi_kmalloc(size_t len) {
@@ -40,8 +42,29 @@ void lapi_bug(void) {
     panic("wasm-linux bug\n");
 }
 
+static const char * get_log_prefix_for_level(int level) {
+    switch(level) {
+        case 1:
+            return "[ERROR]";
+
+        case 3:
+            return "[WARNING]";
+
+        case 6:
+            return "[INFO]";
+
+        default:
+            return "";
+    }
+}
+
 void lapi_env_log(void *kctx, int level, const char *text_base, size_t text_len) {
-    printk(KERN_INFO "[waks] %.*s\n", (int) text_len, text_base);
+    printk(KERN_INFO "waks: (%d) %s %.*s\n",
+        task_pid_nr(current),
+        get_log_prefix_for_level(level),
+        (int) text_len,
+        text_base
+    );
 }
 
 int lapi_env_yield(void *kctx) {
