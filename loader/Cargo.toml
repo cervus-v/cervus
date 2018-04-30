@@ -1,0 +1,8 @@
+[package]
+name = "loader"
+version = "0.1.0"
+authors = ["losfair <zhy20000919@hotmail.com>"]
+
+[dependencies]
+wasm-core = { version = "0.2.13", features = ["trans"]}
+libc = "0.2"
