@@ -2,6 +2,8 @@
 
 A WebAssembly subsystem for Linux.
 
+![Screenshot](https://i.imgur.com/QFvUibQ.png)
+
 ## What's it?
 
 Cervus implements a WebAssembly "usermode" on top of the Linux kernel (which tries to follows the [CommonWA](https://github.com/CommonWA/cwa-spec) specification), enabling wasm applications to run directly in ring 0, while still ensuring safety and security.
