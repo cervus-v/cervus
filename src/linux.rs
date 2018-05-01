@@ -6,9 +6,21 @@ extern "C" {
 
     pub fn lapi_env_reschedule(kctx: *mut u8) -> i32;
 
+    pub fn lapi_env_get_uid(kctx: *mut u8) -> i32;
+
+    pub fn lapi_semaphore_new() -> *mut RawSemaphore;
+    pub fn lapi_semaphore_destroy(sem: *mut RawSemaphore);
+    pub fn lapi_semaphore_up(sem: *mut RawSemaphore);
+    pub fn lapi_semaphore_down(sem: *mut RawSemaphore) -> i32;
+
     pub fn lapi_env_log(kctx: *mut u8, level: i32, text_base: *const u8, text_len: usize);
     pub fn lapi_env_yield(kctx: *mut u8) -> i32;
     pub fn lapi_env_msleep(kctx: *mut u8, ms: u32) -> i32;
+}
+
+#[repr(C)]
+pub struct RawSemaphore {
+    _opaque: usize
 }
 
 macro_rules! println {

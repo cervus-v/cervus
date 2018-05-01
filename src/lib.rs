@@ -1,6 +1,8 @@
 #![feature(lang_items)]
 #![feature(alloc)]
 #![feature(global_allocator, allocator_api)]
+#![feature(const_fn)]
+#![feature(untagged_unions)]
 #![no_std]
 
 extern crate hexagon_e;
@@ -16,6 +18,11 @@ pub mod stub;
 pub mod allocator;
 pub mod uapi;
 pub mod backend;
+pub mod global;
+pub mod sync;
+pub mod mutex;
+pub mod error;
+pub mod system_service;
 
 use allocator::KernelAllocator;
 
