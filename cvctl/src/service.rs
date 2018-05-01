@@ -15,12 +15,13 @@ macro_rules! impl_debug_display {
 
 #[repr(i32)]
 pub enum Command {
-    LoadCode = 1
+    LoadCode = 0x1001,
+    RunCode = 0x1002
 }
 
 #[repr(i32)]
 pub enum Backend {
-    HexagonE = 1
+    HexagonE = 0x01
 }
 
 #[derive(Debug)]
@@ -57,7 +58,7 @@ impl ServiceContext {
         })
     }
 
-    pub fn load_code(&mut self, code: &[u8], backend: Backend) -> ServiceResult<()> {
+    fn submit_code(&mut self, code: &[u8], backend: Backend, cmd: Command) -> ServiceResult<i32> {
         if code.len() == 0 {
             return Err(ServiceError::InvalidInput);
         }
@@ -75,19 +76,39 @@ impl ServiceContext {
             addr: &code[0]
         };
 
+        match cmd {
+            Command::LoadCode | Command::RunCode => {},
+            /*_ => {
+                return Err(ServiceError::InvalidInput);
+            }*/
+        }
+
         let fd = self.dev.as_raw_fd();
         let ret = unsafe {
             ::libc::ioctl(
                 fd,
-                Command::LoadCode as i32 as ::libc::c_ulong,
+                cmd as i32 as ::libc::c_ulong,
                 &opts as *const LoadCodeOptions as ::libc::c_ulong
             )
         };
 
-        if ret < 0 {
-            Err(ServiceError::Rejected)
-        } else {
-            Ok(())
+        Ok(ret)
+    }
+
+    pub fn load_code(&mut self, code: &[u8], backend: Backend) -> ServiceResult<()> {
+        match self.submit_code(code, backend, Command::LoadCode) {
+            Ok(v) => {
+                if v == 0 {
+                    Ok(())
+                } else {
+                    Err(ServiceError::Rejected)
+                }
+            },
+            Err(e) => Err(e)
         }
+    }
+
+    pub fn run_code(&mut self, code: &[u8], backend: Backend) -> ServiceResult<i32> {
+        self.submit_code(code, backend, Command::RunCode)
     }
 }
