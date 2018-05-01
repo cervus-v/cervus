@@ -14,8 +14,9 @@
 
 #include "kctx.h"
 
-#define CERVUS_LOAD_CODE 1
-#define EXEC_HEXAGON_E 1
+#define CERVUS_LOAD_CODE 0x1001
+#define CERVUS_RUN_CODE 0x1002
+#define EXEC_HEXAGON_E 0x01
 
 const char *CLASS_NAME = "cervus";
 const char *DEVICE_NAME = "cvctl";
@@ -51,19 +52,21 @@ struct execution_info {
     char code[0];
 };
 
-int execution_worker(void *data) {
-    struct execution_info *einfo;
-    struct kernel_context kctx;
-    int ret;
+static inline struct execution_info * einfo_alloc(size_t code_len) {
+    return vmalloc(sizeof(struct execution_info) + code_len);
+}
 
-    einfo = data;
+static inline void einfo_free(struct execution_info *einfo) {
+    vfree(einfo);
+}
+
+static int do_execution(struct execution_info *einfo) {
+    int ret;
+    struct kernel_context kctx;
 
     kctx.euid = einfo -> euid;
 
     printk(KERN_INFO "cervus: starting application for user %d\n", einfo -> euid);
-
-    allow_signal(SIGKILL);
-    //allow_signal(SIGTERM);
 
     switch(einfo -> executor) {
         case EXEC_HEXAGON_E:
@@ -84,8 +87,19 @@ int execution_worker(void *data) {
             printk(KERN_INFO "cervus: Unknown executor: %d\n", einfo -> executor);
     }
 
+    return ret;
+}
+
+static int execution_worker(void *data) {
+    int ret;
+    struct execution_info *einfo = data;
+
+    allow_signal(SIGKILL);
+
+    ret = do_execution(einfo);
+    einfo_free(einfo);
+
     printk(KERN_INFO "cervus: (%d) WebAssembly application exited with code %d\n", task_pid_nr(current), ret);
-    vfree(einfo);
 
     return 0;
 }
@@ -165,18 +179,18 @@ struct load_code_info {
     void *addr;
 };
 
-static ssize_t handle_load_code(struct file *_file, void *arg) {
+static struct execution_info * load_execution_info_from_user(void *lci_user) {
     struct load_code_info lci;
     struct execution_info *einfo;
     const struct cred *cred;
 
-    if(copy_from_user(&lci, arg, sizeof(struct load_code_info))) {
-        return -EFAULT;
+    if(copy_from_user(&lci, lci_user, sizeof(struct load_code_info))) {
+        return ERR_PTR(-EFAULT);
     }
 
-    einfo = vmalloc(sizeof(struct execution_info) + lci.len);
+    einfo = einfo_alloc(lci.len);
     if(einfo == NULL) {
-        return -ENOMEM;
+        return ERR_PTR(-ENOMEM);
     }
 
     cred = current_cred();
@@ -185,18 +199,44 @@ static ssize_t handle_load_code(struct file *_file, void *arg) {
     einfo -> euid = cred -> euid.val;
     einfo -> len = lci.len;
     if(copy_from_user(einfo -> code, lci.addr, lci.len)) {
-        vfree(einfo);
-        return -EFAULT;
+        einfo_free(einfo);
+        return ERR_PTR(-EFAULT);
+    }
+
+    return einfo;
+}
+
+static ssize_t handle_load_code(struct file *_file, void *arg) {
+    struct execution_info *einfo;
+
+    einfo = load_execution_info_from_user(arg);
+    if(IS_ERR(einfo)) {
+        return PTR_ERR(einfo);
     }
 
     if(IS_ERR(
         kthread_run(execution_worker, einfo, "cervus-worker")
     )) {
-        vfree(einfo);
+        einfo_free(einfo);
         return -ENOMEM;
     }
 
     return 0;
+}
+
+static ssize_t handle_run_code(struct file *_file, void *arg) {
+    int ret;
+    struct execution_info *einfo;
+
+    einfo = load_execution_info_from_user(arg);
+    if(IS_ERR(einfo)) {
+        return PTR_ERR(einfo);
+    }
+
+    ret = do_execution(einfo);
+    einfo_free(einfo);
+
+    return ret;
 }
 
 #define DISPATCH_CMD(cmd, f) case cmd: return (f)(file, (void *) arg);
@@ -204,6 +244,7 @@ static ssize_t handle_load_code(struct file *_file, void *arg) {
 static ssize_t wd_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
     switch(cmd) {
         DISPATCH_CMD(CERVUS_LOAD_CODE, handle_load_code)
+        DISPATCH_CMD(CERVUS_RUN_CODE, handle_run_code)
         default:
             return -EINVAL;
     }

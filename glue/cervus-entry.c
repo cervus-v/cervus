@@ -131,7 +131,7 @@ int lapi_semaphore_down(struct semaphore *sem) {
 
 int __init init_module(void) {
     int ret;
-    
+
     ret = cervus_global_init();
     if(ret) {
         printk(KERN_ALERT "cervus: global initialization failed with code %d\n", ret);
