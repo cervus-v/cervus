@@ -8,6 +8,8 @@
 #include <linux/semaphore.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
+#include <linux/cred.h>
+#include <linux/security.h>
 #include <linux/kthread.h>
 
 #define CERVUS_LOAD_CODE 1
@@ -42,6 +44,7 @@ extern int run_code_in_hexagon_e(
 
 struct execution_info {
     int executor;
+    uid_t euid;
     size_t len;
     char code[0];
 };
@@ -51,6 +54,8 @@ int execution_worker(void *data) {
     int ret;
 
     einfo = data;
+
+    printk(KERN_INFO "cervus: starting application for user %d\n", einfo -> euid);
 
     allow_signal(SIGKILL);
     //allow_signal(SIGTERM);
@@ -158,6 +163,7 @@ struct load_code_info {
 static ssize_t handle_load_code(struct file *_file, void *arg) {
     struct load_code_info lci;
     struct execution_info *einfo;
+    const struct cred *cred;
 
     if(copy_from_user(&lci, arg, sizeof(struct load_code_info))) {
         return -EFAULT;
@@ -168,7 +174,10 @@ static ssize_t handle_load_code(struct file *_file, void *arg) {
         return -ENOMEM;
     }
 
+    cred = current_cred();
+
     einfo -> executor = lci.executor;
+    einfo -> euid = cred -> euid.val;
     einfo -> len = lci.len;
     if(copy_from_user(einfo -> code, lci.addr, lci.len)) {
         vfree(einfo);
