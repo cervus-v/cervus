@@ -12,6 +12,8 @@
 #include <linux/security.h>
 #include <linux/kthread.h>
 
+#include "kctx.h"
+
 #define CERVUS_LOAD_CODE 1
 #define EXEC_HEXAGON_E 1
 
@@ -51,9 +53,12 @@ struct execution_info {
 
 int execution_worker(void *data) {
     struct execution_info *einfo;
+    struct kernel_context kctx;
     int ret;
 
     einfo = data;
+
+    kctx.euid = einfo -> euid;
 
     printk(KERN_INFO "cervus: starting application for user %d\n", einfo -> euid);
 
@@ -70,7 +75,7 @@ int execution_worker(void *data) {
                 16384,
                 1024,
                 1024,
-                NULL
+                &kctx
             );
             break;
 

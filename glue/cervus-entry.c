@@ -3,6 +3,9 @@
 #include <linux/delay.h>
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
+#include <linux/semaphore.h>
+
+#include "kctx.h"
 
 // FIXME: Return -1 on SIGKILL only
 #define CHK_FATAL_SIGNAL() \
@@ -13,6 +16,9 @@
 
 extern int uapi_init(void);
 extern void uapi_cleanup(void);
+
+extern int cervus_global_init(void);
+extern void cervus_global_cleanup(void);
 
 void *_GLOBAL_OFFSET_TABLE_ = NULL;
 
@@ -58,6 +64,11 @@ static const char * get_log_prefix_for_level(int level) {
     }
 }
 
+int lapi_env_get_uid(void *raw_kctx) {
+    struct kernel_context *kctx = raw_kctx;
+    return kctx -> euid;
+}
+
 void lapi_env_log(void *kctx, int level, const char *text_base, size_t text_len) {
     printk(KERN_INFO "cervus: (%d) %s %.*s\n",
         task_pid_nr(current),
@@ -88,13 +99,57 @@ int lapi_env_reschedule(void *kctx) {
     return 0;
 }
 
+struct semaphore * lapi_semaphore_new(void) {
+    struct semaphore *sem = kmalloc(sizeof(struct semaphore), GFP_KERNEL);
+    if(!sem) return NULL;
+
+    sema_init(sem, 0);
+    return sem;
+}
+
+void lapi_semaphore_destroy(struct semaphore *sem) {
+    kfree(sem);
+}
+
+void lapi_semaphore_up(struct semaphore *sem) {
+    up(sem);
+}
+
+int lapi_semaphore_down(struct semaphore *sem) {
+    int ret;
+
+    CHK_FATAL_SIGNAL();
+    ret = down_interruptible(sem);
+    CHK_FATAL_SIGNAL();
+
+    if(ret) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int __init init_module(void) {
-    uapi_init();
+    int ret;
+    
+    ret = cervus_global_init();
+    if(ret) {
+        printk(KERN_ALERT "cervus: global initialization failed with code %d\n", ret);
+        return -EINVAL;
+    }
+
+    ret = uapi_init();
+    if(ret) {
+        printk(KERN_ALERT "cervus: uapi initialization failed with code %d\n", ret);
+        return -EINVAL;
+    }
+
     printk(KERN_INFO "cervus: service initialized\n");
     return 0;
 }
 
 void __exit cleanup_module(void) {
+    cervus_global_cleanup();
     uapi_cleanup();
     printk(KERN_INFO "cervus: service stopped\n");
 }
