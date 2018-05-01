@@ -1,20 +1,12 @@
 extern crate wasm_core;
-extern crate libc;
+extern crate cvctl;
 
 use std::fs::File;
 use std::env;
 use std::io::Read;
-use std::os::unix::io::AsRawFd;
 
 use wasm_core::trans::config::ModuleConfig;
 use wasm_core::hetrans::translate_module;
-
-#[repr(C)]
-struct LoadCodeInfo {
-    executor: i32,
-    len: usize,
-    addr: *const u8
-}
 
 fn main() {
     let mut args = env::args();
@@ -31,18 +23,10 @@ fn main() {
     let entry_fn = module.lookup_exported_func("__cv_main").expect("Entry function `__cv_main` not found");
 
     let result = translate_module(&module, entry_fn);
-    let loader: File = File::open("/dev/cvctl").unwrap();
-
     eprintln!("Code length: {}", result.len());
-    let fd = loader.as_raw_fd();
 
-    let load_opt = LoadCodeInfo {
-        executor: 1,
-        len: result.len(),
-        addr: &result[0]
-    };
-    let ret = unsafe {
-        libc::ioctl(fd, 1, &load_opt as *const LoadCodeInfo as usize)
-    };
-    assert!(ret >= 0);
+    let mut ctx = cvctl::service::ServiceContext::connect().unwrap();
+    ctx.load_code(&result, cvctl::service::Backend::HexagonE).unwrap();
+
+    eprintln!("Code loaded");
 }
