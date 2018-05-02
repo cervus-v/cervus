@@ -74,6 +74,8 @@ impl Context for UsermodeContext {
             100003 => Ok(NativeInvokePolicy { n_args: 3 }),
             100004 => Ok(NativeInvokePolicy { n_args: 3 }),
             100005 => Ok(NativeInvokePolicy { n_args: 1 }),
+            100006 => Ok(NativeInvokePolicy { n_args: 0 }),
+            100007 => Ok(NativeInvokePolicy { n_args: 3 }),
             110000 => Ok(NativeInvokePolicy { n_args: 0 }),
             110001 => Ok(NativeInvokePolicy { n_args: 0 }),
             110002 => Ok(NativeInvokePolicy { n_args: 0 }),
@@ -159,6 +161,34 @@ impl Context for UsermodeContext {
                 self.remove_resource(id)?;
 
                 Ok(None)
+            },
+            100006 /* get_n_args */ => {
+                check_len(args, 0)?;
+
+                Ok(Some(unsafe {
+                    linux::lapi_env_get_n_args(self.kctx) as i64
+                }))
+            },
+            100007 /* read_arg */ => {
+                check_len(args, 3)?;
+
+                let id = args[0] as u32;
+                let mem_begin = args[1] as u32 as usize;
+                let len = args[2] as u32 as usize;
+
+                let out = mem.checked_slice_mut(mem_begin, mem_begin + len)?;
+                if out.len() == 0 {
+                    Err(BackendError::InvalidInput)
+                } else {
+                    Ok(Some(unsafe {
+                        linux::lapi_env_read_arg(
+                            self.kctx,
+                            id,
+                            &mut out[0],
+                            out.len()
+                        ) as i64
+                    }))
+                }
             },
             110000 /* get_stdin */ => {
                 check_len(args, 0)?;
