@@ -7,6 +7,7 @@
 #include <linux/kfifo.h>
 #include <linux/semaphore.h>
 #include <linux/fs.h>
+#include <linux/file.h>
 #include <linux/uaccess.h>
 #include <linux/cred.h>
 #include <linux/security.h>
@@ -60,11 +61,15 @@ static inline void einfo_free(struct execution_info *einfo) {
     vfree(einfo);
 }
 
-static int do_execution(struct execution_info *einfo) {
-    int ret;
-    struct kernel_context kctx;
+static inline void init_kctx(struct kernel_context *kctx, struct execution_info *einfo) {
+    kctx -> euid = einfo -> euid;
+    kctx -> stdin = NULL;
+    kctx -> stdout = NULL;
+    kctx -> stderr = NULL;
+}
 
-    kctx.euid = einfo -> euid;
+static int do_execution(struct execution_info *einfo, struct kernel_context *kctx) {
+    int ret;
 
     printk(KERN_INFO "cervus: starting application for user %d\n", einfo -> euid);
 
@@ -78,7 +83,7 @@ static int do_execution(struct execution_info *einfo) {
                 16384,
                 1024,
                 1024,
-                &kctx
+                kctx
             );
             break;
 
@@ -93,10 +98,12 @@ static int do_execution(struct execution_info *einfo) {
 static int execution_worker(void *data) {
     int ret;
     struct execution_info *einfo = data;
+    struct kernel_context kctx;
 
+    init_kctx(&kctx, einfo);
     allow_signal(SIGKILL);
 
-    ret = do_execution(einfo);
+    ret = do_execution(einfo, &kctx);
     einfo_free(einfo);
 
     printk(KERN_INFO "cervus: (%d) WebAssembly application exited with code %d\n", task_pid_nr(current), ret);
@@ -214,6 +221,11 @@ static ssize_t handle_load_code(struct file *_file, void *arg) {
         return PTR_ERR(einfo);
     }
 
+    // Only root can load code to run standalone because it will run with uid = 0
+    if(einfo -> euid != 0) {
+        return -EPERM;
+    }
+
     if(IS_ERR(
         kthread_run(execution_worker, einfo, "cervus-worker")
     )) {
@@ -227,14 +239,30 @@ static ssize_t handle_load_code(struct file *_file, void *arg) {
 static ssize_t handle_run_code(struct file *_file, void *arg) {
     int ret;
     struct execution_info *einfo;
+    struct kernel_context kctx;
 
     einfo = load_execution_info_from_user(arg);
     if(IS_ERR(einfo)) {
         return PTR_ERR(einfo);
     }
 
-    ret = do_execution(einfo);
+    init_kctx(&kctx, einfo);
+
+    kctx.stdin = fget_raw(0);
+    if(IS_ERR(kctx.stdin)) kctx.stdin = NULL;
+
+    kctx.stdout = fget_raw(1);
+    if(IS_ERR(kctx.stdout)) kctx.stdout = NULL;
+
+    kctx.stderr = fget_raw(2);
+    if(IS_ERR(kctx.stderr)) kctx.stderr = NULL;
+
+    ret = do_execution(einfo, &kctx);
     einfo_free(einfo);
+
+    if(kctx.stdin) fput(kctx.stdin);
+    if(kctx.stdout) fput(kctx.stdout);
+    if(kctx.stderr) fput(kctx.stderr);
 
     return ret;
 }

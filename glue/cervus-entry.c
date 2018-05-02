@@ -69,13 +69,62 @@ int lapi_env_get_uid(void *raw_kctx) {
     return kctx -> euid;
 }
 
-void lapi_env_log(void *kctx, int level, const char *text_base, size_t text_len) {
-    printk(KERN_INFO "cervus: (%d) %s %.*s\n",
-        task_pid_nr(current),
-        get_log_prefix_for_level(level),
-        (int) text_len,
-        text_base
-    );
+static ssize_t write_trusted_cstr(struct file *file, const char *trusted_text) {
+    size_t len = strlen(trusted_text);
+    return kernel_write(file, trusted_text, len, 0);
+}
+
+struct file * lapi_env_get_stdin(void *raw_kctx) {
+    struct kernel_context *kctx = raw_kctx;
+    return kctx -> stdin;
+}
+
+struct file * lapi_env_get_stdout(void *raw_kctx) {
+    struct kernel_context *kctx = raw_kctx;
+    return kctx -> stdout;
+}
+
+struct file * lapi_env_get_stderr(void *raw_kctx) {
+    struct kernel_context *kctx = raw_kctx;
+    return kctx -> stderr;
+}
+
+ssize_t lapi_env_write_file(
+    void *kctx,
+    struct file *file,
+    const char *data,
+    size_t len,
+    long long offset
+) {
+    return kernel_write(file, data, len, offset);
+}
+
+ssize_t lapi_env_read_file(
+    void *kctx,
+    struct file *file,
+    char *data_out,
+    size_t len,
+    long long offset
+) {
+    return kernel_read(file, offset, data_out, len);
+}
+
+void lapi_env_log(void *raw_kctx, int level, const char *text_base, size_t text_len) {
+    struct kernel_context *kctx = raw_kctx;
+
+    if(kctx -> stderr) {
+        write_trusted_cstr(kctx -> stderr, get_log_prefix_for_level(level));
+        write_trusted_cstr(kctx -> stderr, " ");
+        kernel_write(kctx -> stderr, text_base, text_len, 0);
+        write_trusted_cstr(kctx -> stderr, "\n");
+    } else {
+        printk(KERN_INFO "cervus: (%d) %s %.*s\n",
+            task_pid_nr(current),
+            get_log_prefix_for_level(level),
+            (int) text_len,
+            text_base
+        );
+    }
 }
 
 int lapi_env_yield(void *kctx) {

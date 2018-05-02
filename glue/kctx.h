@@ -5,7 +5,9 @@
 
 struct kernel_context {
     uid_t euid;
-    struct file *stdout; // -1 for kmsg
+    struct file *stdin;
+    struct file *stdout;
+    struct file *stderr;
 };
 
 #endif
