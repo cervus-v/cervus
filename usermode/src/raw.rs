@@ -9,10 +9,26 @@ extern "C" {
     fn syscall_100003(fd: i32, addr: *mut u8, len: usize) -> i32; // read
     fn syscall_100004(fd: i32, addr: *const u8, len: usize) -> i32; // write
     fn syscall_100005(fd: i32); // close
+    fn syscall_100006() -> i32; // get_n_args
+    fn syscall_100007(id: u32, addr: *mut u8, len: usize) -> i32; // read_arg
 
     fn syscall_110000() -> i32; // get_stdin
     fn syscall_110001() -> i32; // get_stdout
     fn syscall_110002() -> i32; // get_stderr
+}
+
+pub fn get_n_args() -> usize {
+    unsafe { syscall_100006() as usize }
+}
+
+pub fn read_arg(id: u32, out: &mut [u8]) -> isize {
+    let len = out.len();
+
+    if len == 0 {
+        -1
+    } else {
+        unsafe { syscall_100007(id, &mut out[0], len) as isize }
+    }
 }
 
 pub fn get_stdin() -> i32 {
