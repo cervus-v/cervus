@@ -6,6 +6,55 @@ extern "C" {
     fn syscall_100000(version_base: *const u8, version_len: usize); // chk_version
     fn syscall_100001(); // yield
     fn syscall_100002(ms: u32); // msleep
+    fn syscall_100003(fd: i32, addr: *mut u8, len: usize) -> i32; // read
+    fn syscall_100004(fd: i32, addr: *const u8, len: usize) -> i32; // write
+    fn syscall_100005(fd: i32); // close
+
+    fn syscall_110000() -> i32; // get_stdin
+    fn syscall_110001() -> i32; // get_stdout
+    fn syscall_110002() -> i32; // get_stderr
+}
+
+pub fn get_stdin() -> i32 {
+    unsafe { syscall_110000() }
+}
+
+pub fn get_stdout() -> i32 {
+    unsafe { syscall_110001() }
+}
+
+pub fn get_stderr() -> i32 {
+    unsafe { syscall_110002() }
+}
+
+pub fn read(fd: i32, data: &mut [u8]) -> i32 {
+    let len = data.len();
+
+    if len == 0 {
+        -1
+    } else {
+        unsafe {
+            syscall_100003(fd, &mut data[0], len)
+        }
+    }
+}
+
+pub fn write(fd: i32, data: &[u8]) -> i32 {
+    let len = data.len();
+
+    if len == 0 {
+        -1
+    } else {
+        unsafe {
+            syscall_100004(fd, &data[0], len)
+        }
+    }
+}
+
+pub fn close(fd: i32) {
+    unsafe {
+        syscall_100005(fd)
+    }
 }
 
 pub fn chk_version() {
@@ -46,7 +95,7 @@ pub fn log(level: LogLevel, text: &str) {
         syscall_0(level, if text.len() > 0 {
             &text[0]
         } else {
-            ::core::ptr::null()
+            ::std::ptr::null()
         }, text.len());
     }
 }

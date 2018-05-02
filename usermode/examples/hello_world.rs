@@ -3,6 +3,10 @@
 #[macro_use]
 extern crate usermode;
 
+use std::io::Write;
+
 main!({
-    println!("Hello, world!");
+    for i in 0..10000 {
+        usermode::file::with_stdout(|out| write!(out, "Hello world {}\n", i)).unwrap();
+    }
 });
