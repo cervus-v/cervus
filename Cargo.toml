@@ -10,4 +10,4 @@ repository = "https://github.com/cervus-v/cervus"
 crate-type = ["staticlib"]
 
 [dependencies]
-hexagon-e = "0.1.3"
+hexagon-e = "0.1.4"
