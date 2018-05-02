@@ -49,6 +49,8 @@ extern int run_code_in_hexagon_e(
 struct execution_info {
     int executor;
     uid_t euid;
+    int n_args;
+    const struct user_string __user *args;
     size_t len;
     char code[0];
 };
@@ -66,6 +68,8 @@ static inline void init_kctx(struct kernel_context *kctx, struct execution_info 
     kctx -> stdin = NULL;
     kctx -> stdout = NULL;
     kctx -> stderr = NULL;
+    kctx -> n_args = einfo -> n_args;
+    kctx -> args = einfo -> args;
 }
 
 static int do_execution(struct execution_info *einfo, struct kernel_context *kctx) {
@@ -182,6 +186,10 @@ static ssize_t wd_write(struct file *_file, const char *data, size_t len, loff_t
 
 struct load_code_info {
     int executor;
+
+    int n_args;
+    const struct user_string __user *args;
+
     unsigned long len;
     void *addr;
 };
@@ -204,6 +212,8 @@ static struct execution_info * load_execution_info_from_user(void *lci_user) {
 
     einfo -> executor = lci.executor;
     einfo -> euid = cred -> euid.val;
+    einfo -> n_args = lci.n_args;
+    einfo -> args = lci.args;
     einfo -> len = lci.len;
     if(copy_from_user(einfo -> code, lci.addr, lci.len)) {
         einfo_free(einfo);
@@ -216,15 +226,19 @@ static struct execution_info * load_execution_info_from_user(void *lci_user) {
 static ssize_t handle_load_code(struct file *_file, void *arg) {
     struct execution_info *einfo;
 
+    // Only root can load code to run standalone because it will run with uid = 0
+    if(current_cred() -> euid.val != 0) {
+        return -EPERM;
+    }
+
     einfo = load_execution_info_from_user(arg);
     if(IS_ERR(einfo)) {
         return PTR_ERR(einfo);
     }
 
-    // Only root can load code to run standalone because it will run with uid = 0
-    if(einfo -> euid != 0) {
-        return -EPERM;
-    }
+    // User-space memory is invalidated as soon as we enter the new kernel thread
+    einfo -> n_args = 0;
+    einfo -> args = NULL;
 
     if(IS_ERR(
         kthread_run(execution_worker, einfo, "cervus-worker")

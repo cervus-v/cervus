@@ -4,6 +4,7 @@
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
 #include <linux/semaphore.h>
+#include <linux/uaccess.h>
 
 #include "kctx.h"
 
@@ -67,6 +68,32 @@ static const char * get_log_prefix_for_level(int level) {
 int lapi_env_get_uid(void *raw_kctx) {
     struct kernel_context *kctx = raw_kctx;
     return kctx -> euid;
+}
+
+unsigned int lapi_env_get_n_args(void *raw_kctx) {
+    struct kernel_context *kctx = raw_kctx;
+    return kctx -> n_args;
+}
+
+ssize_t lapi_env_read_arg(void *raw_kctx, unsigned int id, char *out, size_t max_len) {
+    struct user_string arg;
+    size_t copy_len;
+    struct kernel_context *kctx = raw_kctx;
+
+    if(id >= kctx -> n_args) {
+        return -1;
+    }
+
+    if(copy_from_user(&arg, kctx -> args + id, sizeof(const struct user_string))) {
+        return -1;
+    }
+
+    copy_len = arg.len < max_len ? arg.len : max_len;
+    if(copy_from_user(out, arg.data, copy_len)) {
+        return -1;
+    }
+    
+    return copy_len;
 }
 
 /*
