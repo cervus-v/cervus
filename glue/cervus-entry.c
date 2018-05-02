@@ -96,7 +96,13 @@ ssize_t lapi_env_write_file(
     size_t len,
     long long offset
 ) {
-    return kernel_write(file, data, len, offset);
+    ssize_t ret;
+
+    CHK_FATAL_SIGNAL();
+    ret = kernel_write(file, data, len, offset);
+    CHK_FATAL_SIGNAL();
+
+    return ret;
 }
 
 ssize_t lapi_env_read_file(
@@ -106,7 +112,13 @@ ssize_t lapi_env_read_file(
     size_t len,
     long long offset
 ) {
-    return kernel_read(file, offset, data_out, len);
+    ssize_t ret;
+
+    CHK_FATAL_SIGNAL();
+    ret = kernel_read(file, offset, data_out, len);
+    CHK_FATAL_SIGNAL();
+
+    return ret;
 }
 
 void lapi_env_log(void *raw_kctx, int level, const char *text_base, size_t text_len) {
