@@ -1,3 +1,5 @@
+use error::KernelError;
+
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum BackendError {
@@ -7,6 +9,17 @@ pub enum BackendError {
     NotFound,
     InvalidInput,
     FatalSignal
+}
+
+impl From<KernelError> for BackendError {
+    fn from(other: KernelError) -> BackendError {
+        match other {
+            KernelError::FatalSignal => BackendError::FatalSignal,
+            KernelError::Generic => BackendError::Generic,
+            KernelError::InvalidResource => BackendError::NotFound,
+            KernelError::NoMem => BackendError::Generic
+        }
+    }
 }
 
 impl BackendError {
