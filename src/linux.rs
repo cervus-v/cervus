@@ -13,9 +13,42 @@ extern "C" {
     pub fn lapi_semaphore_up(sem: *mut RawSemaphore);
     pub fn lapi_semaphore_down(sem: *mut RawSemaphore) -> i32;
 
+    pub fn lapi_env_write_file(
+        kctx: *mut u8,
+        file: *mut RawFile,
+        data: *const u8,
+        len: usize,
+        offset: i64
+    ) -> isize;
+
+    pub fn lapi_env_read_file(
+        kctx: *mut u8,
+        file: *mut RawFile,
+        data: *mut u8,
+        len: usize,
+        offset: i64
+    ) -> isize;
+
+    pub fn lapi_env_get_stdin(
+        kctx: *mut u8
+    ) -> *mut RawFile;
+
+    pub fn lapi_env_get_stdout(
+        kctx: *mut u8
+    ) -> *mut RawFile;
+
+    pub fn lapi_env_get_stderr(
+        kctx: *mut u8
+    ) -> *mut RawFile;
+
     pub fn lapi_env_log(kctx: *mut u8, level: i32, text_base: *const u8, text_len: usize);
     pub fn lapi_env_yield(kctx: *mut u8) -> i32;
     pub fn lapi_env_msleep(kctx: *mut u8, ms: u32) -> i32;
+}
+
+#[repr(C)]
+pub struct RawFile {
+    _opaque: usize
 }
 
 #[repr(C)]

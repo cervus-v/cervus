@@ -23,6 +23,8 @@ pub mod sync;
 pub mod mutex;
 pub mod error;
 pub mod system_service;
+pub mod slab;
+pub mod resource;
 
 use allocator::KernelAllocator;
 
