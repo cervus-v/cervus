@@ -13,6 +13,12 @@ macro_rules! impl_debug_display {
     }
 }
 
+#[repr(C)]
+pub struct UserString {
+    len: usize,
+    data: *const u8
+}
+
 #[repr(i32)]
 pub enum Command {
     LoadCode = 0x1001,
@@ -47,6 +53,18 @@ impl From<io::Error> for ServiceError {
     }
 }
 
+pub struct ExecEnv<'a> {
+    pub args: &'a [&'a str]
+}
+
+impl<'a> ExecEnv<'a> {
+    pub fn empty() -> ExecEnv<'a> {
+        ExecEnv {
+            args: &[]
+        }
+    }
+}
+
 pub struct ServiceContext {
     dev: File
 }
@@ -58,7 +76,13 @@ impl ServiceContext {
         })
     }
 
-    fn submit_code(&mut self, code: &[u8], backend: Backend, cmd: Command) -> ServiceResult<i32> {
+    fn submit_code<'a>(
+        &mut self,
+        code: &[u8],
+        backend: Backend,
+        cmd: Command,
+        exec_env: ExecEnv<'a>
+    ) -> ServiceResult<i32> {
         if code.len() == 0 {
             return Err(ServiceError::InvalidInput);
         }
@@ -66,12 +90,30 @@ impl ServiceContext {
         #[repr(C)]
         struct LoadCodeOptions {
             executor: i32,
+            n_args: i32,
+            args: *const UserString,
             len: usize,
             addr: *const u8
         }
 
+        let args: Vec<UserString> = exec_env.args.iter()
+            .map(|v| {
+                let v = v.as_bytes();
+                UserString {
+                    len: v.len(),
+                    data: if v.len() == 0 {
+                        ::std::ptr::null()
+                    } else {
+                        &v[0]
+                    }
+                }
+            })
+            .collect();
+
         let opts = LoadCodeOptions {
             executor: backend as i32,
+            n_args: args.len() as i32,
+            args: if args.len() > 0 { &args[0] } else { ::std::ptr::null() },
             len: code.len(),
             addr: &code[0]
         };
@@ -96,7 +138,7 @@ impl ServiceContext {
     }
 
     pub fn load_code(&mut self, code: &[u8], backend: Backend) -> ServiceResult<()> {
-        match self.submit_code(code, backend, Command::LoadCode) {
+        match self.submit_code(code, backend, Command::LoadCode, ExecEnv::empty()) {
             Ok(v) => {
                 if v == 0 {
                     Ok(())
@@ -108,7 +150,14 @@ impl ServiceContext {
         }
     }
 
-    pub fn run_code(&mut self, code: &[u8], backend: Backend) -> ServiceResult<i32> {
-        self.submit_code(code, backend, Command::RunCode)
+    pub fn run_code(
+        &mut self,
+        code: &[u8],
+        backend: Backend,
+        args: &[&str]
+    ) -> ServiceResult<i32> {
+        self.submit_code(code, backend, Command::RunCode, ExecEnv {
+            args: args
+        })
     }
 }

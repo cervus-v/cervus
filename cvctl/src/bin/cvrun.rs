@@ -25,8 +25,14 @@ fn main() {
     let result = translate_module(&module, entry_fn);
     eprintln!("Code length: {}", result.len());
 
+    let mut target_args: Vec<String> = Vec::new();
+    target_args.push(path.clone());
+    target_args.extend(args);
+
+    let arg_refs: Vec<&str> = target_args.iter().map(|v| v.as_str()).collect();
+
     let mut ctx = cvctl::service::ServiceContext::connect().unwrap();
-    let ret = ctx.run_code(&result, cvctl::service::Backend::HexagonE).unwrap();
+    let ret = ctx.run_code(&result, cvctl::service::Backend::HexagonE, &arg_refs).unwrap();
 
     println!("Return code: {}", ret);
 }
