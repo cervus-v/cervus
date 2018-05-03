@@ -10,4 +10,4 @@ ar x libcervus.a
 rm libcervus.a
 cd ..
 
-OBJ_LIST=$(echo rkm/core-*.o rkm/alloc-*.o rkm/cervus-*.o rkm/hexagon_e-*.o) make
+OBJ_LIST=$(echo rkm/cervus-*.o) make

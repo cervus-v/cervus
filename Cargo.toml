@@ -9,5 +9,9 @@ repository = "https://github.com/cervus-v/cervus"
 [lib]
 crate-type = ["staticlib"]
 
+[profile.release]
+opt-level = 2
+lto = true
+
 [dependencies]
 hexagon-e = "0.1.4"
