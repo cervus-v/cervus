@@ -22,6 +22,28 @@ impl UsermodeContext {
         }
     }
 
+    pub fn map_cwa_api_to_native_invoke(name: &str) -> Option<u32> {
+        match name {
+            "log_write" => Some(0),
+            "runtime_spec_major" => Some(1),
+            "runtime_spec_minor" => Some(2),
+            "runtime_name" => Some(3),
+            "env_get" => Some(4),
+            "startup_arg_len" => Some(5),
+            "startup_arg_at" => Some(6),
+            "resource_read" => Some(7),
+            "resource_write" => Some(8),
+            "resource_close" => Some(9),
+            "runtime_msleep" => Some(10),
+
+            "io_get_stdin" => Some(11),
+            "io_get_stdout" => Some(12),
+            "io_get_stderr" => Some(13),
+
+            _ => None
+        }
+    }
+
     fn add_resource(&mut self, res: Box<Resource>) -> usize {
         self.mem_pressure += res.mem_pressure();
         self.resources.insert(res)
@@ -68,24 +90,27 @@ impl Context for UsermodeContext {
     fn get_native_invoke_policy(&self, id: usize) -> BackendResult<NativeInvokePolicy> {
         match id {
             0 => Ok(NativeInvokePolicy { n_args: 3 }),
-            100000 => Ok(NativeInvokePolicy { n_args: 2 }),
-            100001 => Ok(NativeInvokePolicy { n_args: 0 }),
-            100002 => Ok(NativeInvokePolicy { n_args: 1 }),
-            100003 => Ok(NativeInvokePolicy { n_args: 3 }),
-            100004 => Ok(NativeInvokePolicy { n_args: 3 }),
-            100005 => Ok(NativeInvokePolicy { n_args: 1 }),
-            100006 => Ok(NativeInvokePolicy { n_args: 0 }),
-            100007 => Ok(NativeInvokePolicy { n_args: 3 }),
-            110000 => Ok(NativeInvokePolicy { n_args: 0 }),
-            110001 => Ok(NativeInvokePolicy { n_args: 0 }),
-            110002 => Ok(NativeInvokePolicy { n_args: 0 }),
+            1 => Ok(NativeInvokePolicy { n_args: 0 }),
+            2 => Ok(NativeInvokePolicy { n_args: 0 }),
+            3 => Ok(NativeInvokePolicy { n_args: 2 }),
+            4 => Ok(NativeInvokePolicy { n_args: 4 }),
+            5 => Ok(NativeInvokePolicy { n_args: 0 }),
+            6 => Ok(NativeInvokePolicy { n_args: 3 }),
+            7 => Ok(NativeInvokePolicy { n_args: 3 }),
+            8 => Ok(NativeInvokePolicy { n_args: 3 }),
+            9 => Ok(NativeInvokePolicy { n_args: 1 }),
+            10 => Ok(NativeInvokePolicy { n_args: 1 }),
+            11 => Ok(NativeInvokePolicy { n_args: 0 }),
+            12 => Ok(NativeInvokePolicy { n_args: 0 }),
+            13 => Ok(NativeInvokePolicy { n_args: 0 }),
+
             _ => Err(BackendError::InvalidNativeInvoke)
         }
     }
 
     fn do_native_invoke(&mut self, id: usize, args: &[i64], mem: &mut [u8]) -> BackendResult<Option<i64>> {
         match id {
-            0 => {
+            0 /* log_write */ => {
                 check_len(args, 3)?;
                 let level = args[0] as i32;
                 let text_base = args[1] as u32 as usize;
@@ -94,6 +119,138 @@ impl Context for UsermodeContext {
                 self.log(level, text);
                 Ok(None)
             },
+            1 /* runtime_spec_major */ => {
+                check_len(args, 0)?;
+                Ok(Some(0))
+            },
+            2 /* runtime_spec_minor */ => {
+                check_len(args, 0)?;
+                Ok(Some(0))
+            },
+            3 /* runtime_name */ => {
+                check_len(args, 2)?;
+
+                static RT_NAME: &'static [u8] = b"Cervus";
+
+                let out_base = args[0] as u32 as usize;
+                let out_len = args[1] as u32 as usize;
+                let out = mem.checked_slice_mut(out_base, out_base + out_len)?;
+
+                Ok(Some(
+                    if out.len() < RT_NAME.len() {
+                        CwaError::InvalidArgument.status() as i64
+                    } else {
+                        out[0..RT_NAME.len()].copy_from_slice(RT_NAME);
+                        RT_NAME.len() as i64
+                    }
+                ))
+            },
+            4 /* env_get */ => {
+                check_len(args, 4)?;
+
+                // Not implemented yet
+                Ok(Some(CwaError::NotFound.status() as i64))
+            },
+            5 /* startup_arg_len */ => {
+                check_len(args, 0)?;
+
+                let n = unsafe {
+                    linux::lapi_env_get_n_args(self.kctx)
+                };
+
+                Ok(Some(n as i64))
+            },
+            6 /* startup_arg_at */ => {
+                check_len(args, 3)?;
+
+                let id = args[0] as u32;
+                let mem_begin = args[1] as u32 as usize;
+                let len = args[2] as u32 as usize;
+
+                let out = mem.checked_slice_mut(mem_begin, mem_begin + len)?;
+                if out.len() == 0 {
+                    Err(BackendError::InvalidInput)
+                } else {
+                    let ret = unsafe {
+                        linux::lapi_env_read_arg(
+                            self.kctx,
+                            id,
+                            &mut out[0],
+                            out.len()
+                        )
+                    };
+                    Ok(Some(if ret >= 0 {
+                        ret as i64
+                    } else {
+                        CwaError::InvalidArgument.status() as i64
+                    }))
+                }
+            },
+            7 /* resource_read */ => {
+                check_len(args, 3)?;
+
+                let id = args[0] as u32 as usize;
+                let mem_begin = args[1] as u32 as usize;
+                let len = args[2] as u32 as usize;
+
+                let out = mem.checked_slice_mut(mem_begin, mem_begin + len)?;
+                self.resources.get_mut(id)?.read(out)
+                    .map(|n| Some(n as i64))
+                    .or_else(|_| Ok(Some(CwaError::Unknown.status() as i64)))
+            },
+            8 /* resource_write */ => {
+                check_len(args, 3)?;
+
+                let id = args[0] as u32 as usize;
+                let mem_begin = args[1] as u32 as usize;
+                let len = args[2] as u32 as usize;
+
+                let data = mem.checked_slice(mem_begin, mem_begin + len)?;
+                self.resources.get_mut(id)?.write(data)
+                    .map(|n| Some(n as i64))
+                    .or_else(|_| Ok(Some(CwaError::Unknown.status() as i64)))
+            },
+            9 /* resource_close */ => {
+                check_len(args, 1)?;
+
+                let id = args[0] as u32 as usize;
+                self.remove_resource(id)?;
+
+                Ok(None)
+            },
+            10 /* runtime_msleep */ => {
+                check_len(args, 1)?;
+                let ms = args[0] as u32;
+                let ret = unsafe { linux::lapi_env_msleep(self.kctx, ms) };
+
+                if ret < 0 {
+                    Err(BackendError::FatalSignal)
+                } else {
+                    Ok(None)
+                }
+            },
+            11 /* io_get_stdin */ => {
+                check_len(args, 0)?;
+                let kctx = self.kctx;
+                Ok(Some(unsafe {
+                    self.add_raw_linux_file(linux::lapi_env_get_stdin(kctx))
+                 } as i64))
+            },
+            12 /* io_get_stdout */ => {
+                check_len(args, 0)?;
+                let kctx = self.kctx;
+                Ok(Some(unsafe {
+                    self.add_raw_linux_file(linux::lapi_env_get_stdout(kctx))
+                 } as i64))
+            },
+            13 /* io_get_stderr */ => {
+                check_len(args, 0)?;
+                let kctx = self.kctx;
+                Ok(Some(unsafe {
+                    self.add_raw_linux_file(linux::lapi_env_get_stderr(kctx))
+                 } as i64))
+            },
+            /*
             100000 /* chk_version */ => {
                 static VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
@@ -118,99 +275,7 @@ impl Context for UsermodeContext {
                 } else {
                     Ok(None)
                 }
-            },
-            100002 /* msleep */ => {
-                check_len(args, 1)?;
-                let ms = args[0] as u32;
-                let ret = unsafe { linux::lapi_env_msleep(self.kctx, ms) };
-
-                if ret < 0 {
-                    Err(BackendError::FatalSignal)
-                } else {
-                    Ok(None)
-                }
-            },
-            100003 /* read */ => {
-                check_len(args, 3)?;
-
-                let id = args[0] as u32 as usize;
-                let mem_begin = args[1] as u32 as usize;
-                let len = args[2] as u32 as usize;
-
-                let out = mem.checked_slice_mut(mem_begin, mem_begin + len)?;
-                self.resources.get_mut(id)?.read(out)
-                    .map(|n| Some(n as i64))
-                    .or_else(|_| Ok(Some(-1)))
-            },
-            100004 /* write */ => {
-                check_len(args, 3)?;
-
-                let id = args[0] as u32 as usize;
-                let mem_begin = args[1] as u32 as usize;
-                let len = args[2] as u32 as usize;
-
-                let data = mem.checked_slice(mem_begin, mem_begin + len)?;
-                self.resources.get_mut(id)?.write(data)
-                    .map(|n| Some(n as i64))
-                    .or_else(|_| Ok(Some(-1)))
-            },
-            100005 /* close */ => {
-                check_len(args, 1)?;
-
-                let id = args[0] as u32 as usize;
-                self.remove_resource(id)?;
-
-                Ok(None)
-            },
-            100006 /* get_n_args */ => {
-                check_len(args, 0)?;
-
-                Ok(Some(unsafe {
-                    linux::lapi_env_get_n_args(self.kctx) as i64
-                }))
-            },
-            100007 /* read_arg */ => {
-                check_len(args, 3)?;
-
-                let id = args[0] as u32;
-                let mem_begin = args[1] as u32 as usize;
-                let len = args[2] as u32 as usize;
-
-                let out = mem.checked_slice_mut(mem_begin, mem_begin + len)?;
-                if out.len() == 0 {
-                    Err(BackendError::InvalidInput)
-                } else {
-                    Ok(Some(unsafe {
-                        linux::lapi_env_read_arg(
-                            self.kctx,
-                            id,
-                            &mut out[0],
-                            out.len()
-                        ) as i64
-                    }))
-                }
-            },
-            110000 /* get_stdin */ => {
-                check_len(args, 0)?;
-                let kctx = self.kctx;
-                Ok(Some(unsafe {
-                    self.add_raw_linux_file(linux::lapi_env_get_stdin(kctx))
-                 } as i64))
-            },
-            110001 /* get_stdout */ => {
-                check_len(args, 0)?;
-                let kctx = self.kctx;
-                Ok(Some(unsafe {
-                    self.add_raw_linux_file(linux::lapi_env_get_stdout(kctx))
-                 } as i64))
-            },
-            110002 /* get_stderr */ => {
-                check_len(args, 0)?;
-                let kctx = self.kctx;
-                Ok(Some(unsafe {
-                    self.add_raw_linux_file(linux::lapi_env_get_stderr(kctx))
-                 } as i64))
-            },
+            },*/
             _ => Err(BackendError::InvalidNativeInvoke)
         }
     }

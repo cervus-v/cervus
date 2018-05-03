@@ -51,6 +51,19 @@ fn run_in_usermode_context<B: Backend<Config = G>, G>(
 }
 
 #[no_mangle]
+pub extern "C" fn map_cwa_api(name_base: *const u8, name_len: usize) -> i32 {
+    let name = unsafe { ::core::slice::from_raw_parts(name_base, name_len) };
+    let name = match ::core::str::from_utf8(name) {
+        Ok(v) => v,
+        Err(_) => return -1
+    };
+
+    env::UsermodeContext::map_cwa_api_to_native_invoke(name)
+        .map(|v| v as i32)
+        .unwrap_or(-1)
+}
+
+#[no_mangle]
 pub extern "C" fn run_code_in_hexagon_e(
     code_base: *const u8,
     code_len: usize,
