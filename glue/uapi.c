@@ -325,7 +325,7 @@ static ssize_t handle_map_cwa_api(struct file *_file, void *arg) {
 
 static ssize_t wd_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
     switch(cmd) {
-        DISPATCH_CMD(CERVUS_LOAD_CODE, handle_load_code)
+        //DISPATCH_CMD(CERVUS_LOAD_CODE, handle_load_code)
         DISPATCH_CMD(CERVUS_RUN_CODE, handle_run_code)
         DISPATCH_CMD(CERVUS_MAP_CWA_API, handle_map_cwa_api)
         default:
