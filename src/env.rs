@@ -40,6 +40,8 @@ impl UsermodeContext {
             "io_get_stdout" => Some(12),
             "io_get_stderr" => Some(13),
 
+            "resource_open" => Some(14),
+
             _ => None
         }
     }
@@ -55,10 +57,11 @@ impl UsermodeContext {
         Ok(())
     }
 
-    unsafe fn add_raw_linux_file(&mut self, raw: *mut linux::RawFile) -> i32 {
+    unsafe fn add_raw_linux_file(&mut self, raw: *mut linux::RawFile, need_close: bool) -> i32 {
         match LinuxFile::from_raw_checked(
             self.kctx,
-            raw
+            raw,
+            need_close
         ) {
             Ok(v) => self.add_resource(Box::new(v)) as i32,
             Err(_) => -1
@@ -103,6 +106,7 @@ impl Context for UsermodeContext {
             11 => Ok(NativeInvokePolicy { n_args: 0 }),
             12 => Ok(NativeInvokePolicy { n_args: 0 }),
             13 => Ok(NativeInvokePolicy { n_args: 0 }),
+            14 => Ok(NativeInvokePolicy { n_args: 2 }),
 
             _ => Err(BackendError::InvalidNativeInvoke)
         }
@@ -233,22 +237,40 @@ impl Context for UsermodeContext {
                 check_len(args, 0)?;
                 let kctx = self.kctx;
                 Ok(Some(unsafe {
-                    self.add_raw_linux_file(linux::lapi_env_get_stdin(kctx))
+                    self.add_raw_linux_file(linux::lapi_env_get_stdin(kctx), false)
                  } as i64))
             },
             12 /* io_get_stdout */ => {
                 check_len(args, 0)?;
                 let kctx = self.kctx;
                 Ok(Some(unsafe {
-                    self.add_raw_linux_file(linux::lapi_env_get_stdout(kctx))
+                    self.add_raw_linux_file(linux::lapi_env_get_stdout(kctx), false)
                  } as i64))
             },
             13 /* io_get_stderr */ => {
                 check_len(args, 0)?;
                 let kctx = self.kctx;
                 Ok(Some(unsafe {
-                    self.add_raw_linux_file(linux::lapi_env_get_stderr(kctx))
+                    self.add_raw_linux_file(linux::lapi_env_get_stderr(kctx), false)
                  } as i64))
+            },
+            14 /* resource_open */ => {
+                check_len(args, 2)?;
+
+                let url_base = args[0] as u32 as usize;
+                let url_len = args[1] as u32 as usize;
+
+                let u = mem.extract_str(url_base, url_len)?;
+
+                Ok(Some(match ::url::Url::parse(u) {
+                    Ok(u) => {
+                        match u.open(self.kctx) {
+                            Ok(f) => self.resources.insert(f) as i64,
+                            Err(e) => e.status() as i64
+                        }
+                    },
+                    Err(e) => e.status() as i64
+                }))
             },
             /*
             100000 /* chk_version */ => {

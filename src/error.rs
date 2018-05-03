@@ -16,6 +16,8 @@ pub enum CwaError {
     NotFound = -4
 }
 
+pub type CwaResult<T> = Result<T, CwaError>;
+
 impl CwaError {
     pub fn status(&self) -> i32 {
         *self as i32

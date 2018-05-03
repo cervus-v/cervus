@@ -25,6 +25,7 @@ pub mod error;
 pub mod system_service;
 pub mod slab;
 pub mod resource;
+pub mod url;
 
 use allocator::KernelAllocator;
 

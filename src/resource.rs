@@ -1,9 +1,17 @@
 use linux;
 use linux::RawFile;
 
+#[derive(Copy, Clone, Debug)]
+#[repr(i32)]
 pub enum IoError {
-    Generic,
-    Invalid
+    Generic = -1,
+    Invalid = -2
+}
+
+impl IoError {
+    pub fn status(&self) -> i32 {
+        *self as i32
+    }
 }
 
 pub type IoResult<T> = Result<T, IoError>;
@@ -17,17 +25,29 @@ pub trait Resource {
 pub struct LinuxFile {
     kctx: *mut u8,
     handle: *mut RawFile,
+    need_close: bool,
     offset: i64
 }
 
+impl Drop for LinuxFile {
+    fn drop(&mut self) {
+        if self.need_close {
+            unsafe {
+                linux::lapi_env_close_file(self.handle);
+            }
+        }
+    }
+}
+
 impl LinuxFile {
-    pub unsafe fn from_raw_checked(kctx: *mut u8, f: *mut RawFile) -> IoResult<LinuxFile> {
+    pub unsafe fn from_raw_checked(kctx: *mut u8, f: *mut RawFile, need_close: bool) -> IoResult<LinuxFile> {
         if f.is_null() {
             Err(IoError::Invalid)
         } else {
             Ok(LinuxFile {
                 kctx: kctx,
                 handle: f,
+                need_close: need_close,
                 offset: 0
             })
         }

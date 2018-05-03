@@ -16,6 +16,16 @@ extern "C" {
     pub fn lapi_env_get_n_args(kctx: *mut u8) -> u32;
     pub fn lapi_env_read_arg(kctx: *mut u8, id: u32, out: *mut u8, max_len: usize) -> isize;
 
+    pub fn lapi_env_open_file(
+        kctx: *mut u8,
+        name_base: *const u8,
+        name_len: usize,
+        flags_base: *const u8,
+        flags_len: usize
+    ) -> *mut RawFile;
+
+    pub fn lapi_env_close_file(file: *mut RawFile);
+
     pub fn lapi_env_write_file(
         kctx: *mut u8,
         file: *mut RawFile,
