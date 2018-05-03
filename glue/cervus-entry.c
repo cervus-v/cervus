@@ -118,6 +118,60 @@ struct file * lapi_env_get_stderr(void *raw_kctx) {
     return kctx -> stderr;
 }
 
+struct file * lapi_env_open_file(
+    void *kctx,
+    const char *name_base,
+    size_t name_len,
+    const char *flags_base,
+    size_t flags_len
+) {
+    size_t i;
+    int open_flags = 0;
+    unsigned char allow_read = 0, allow_write = 0;
+    char *name_buf;
+    struct file *file;
+
+    if(name_len > 255) {
+        return NULL;
+    }
+
+    for(i = 0; i < flags_len; i++) {
+        switch(flags_base[i]) {
+            case 'r': allow_read = 1; break;
+            case 'w': allow_write = 1; break;
+            default: break;
+        }
+    }
+
+    if(allow_read && allow_write) {
+        open_flags |= O_RDWR;
+    } else if(allow_read) {
+        open_flags |= O_RDONLY;
+    } else if(allow_write) {
+        open_flags |= O_WRONLY;
+    }
+
+    name_buf = kmalloc(name_len + 1, GFP_KERNEL);
+    if(!name_buf) {
+        return NULL;
+    }
+
+    memcpy(name_buf, name_base, name_len);
+    name_buf[name_len] = 0;
+    file = filp_open(name_buf, open_flags, 0);
+    kfree(name_buf);
+
+    if(!file || IS_ERR(file)) {
+        return NULL;
+    } else {
+        return file;
+    }
+}
+
+void lapi_env_close_file(struct file *file) {
+    filp_close(file, 0);
+}
+
 ssize_t lapi_env_write_file(
     void *kctx,
     struct file *file,
