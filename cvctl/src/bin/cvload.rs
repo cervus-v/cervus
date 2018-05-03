@@ -27,7 +27,6 @@ fn main() {
     let mut ctx = cvctl::service::ServiceContext::connect().unwrap();
 
     let result = translate_module(&module, entry_fn, &mut Mapper::new(&ctx));
-    eprintln!("Code length: {}", result.len());
 
     ctx.load_code(&result, cvctl::service::Backend::HexagonE).unwrap();
 

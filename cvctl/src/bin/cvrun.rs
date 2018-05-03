@@ -27,7 +27,6 @@ fn main() {
     let mut ctx = cvctl::service::ServiceContext::connect().unwrap();
 
     let result = translate_module(&module, entry_fn, &mut Mapper::new(&ctx));
-    eprintln!("Code length: {}", result.len());
 
     let mut target_args: Vec<String> = Vec::new();
     target_args.push(path.clone());
@@ -37,5 +36,7 @@ fn main() {
 
     let ret = ctx.run_code(&result, cvctl::service::Backend::HexagonE, &arg_refs).unwrap();
 
-    println!("Return code: {}", ret);
+    if ret != 0 {
+        eprintln!("Application exited with code {}", ret);
+    }
 }
