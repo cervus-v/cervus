@@ -17,16 +17,18 @@ fn main() {
     let path = args.next().expect("Path required");
     let mut f = File::open(&path).unwrap();
     let mut code: Vec<u8> = Vec::new();
-
-    let cfg: ModuleConfig = ModuleConfig::default();
-
     f.read_to_end(&mut code).unwrap();
-    let module = wasm_core::trans::translate_module_raw(code.as_slice(), cfg);
-    let entry_fn = module.lookup_exported_func("__app_main").expect("Entry function `__cv_main` not found");
 
     let mut ctx = cvctl::service::ServiceContext::connect().unwrap();
 
-    let result = translate_module(&module, entry_fn, &mut Mapper::new(&ctx));
+    let result = {
+        let cfg: ModuleConfig = ModuleConfig::default();
+
+        let module = wasm_core::trans::translate_module_raw(code.as_slice(), cfg);
+        let entry_fn = module.lookup_exported_func("__app_main").expect("Entry function `__cv_main` not found");
+
+        translate_module(&module, entry_fn, &mut Mapper::new(&ctx))
+    };
 
     let mut target_args: Vec<String> = Vec::new();
     target_args.push(path.clone());
