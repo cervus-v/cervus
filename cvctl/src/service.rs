@@ -22,7 +22,8 @@ pub struct UserString {
 #[repr(i32)]
 pub enum Command {
     LoadCode = 0x1001,
-    RunCode = 0x1002
+    RunCode = 0x1002,
+    MapCwaApi = 0x1003
 }
 
 #[repr(i32)]
@@ -120,9 +121,9 @@ impl ServiceContext {
 
         match cmd {
             Command::LoadCode | Command::RunCode => {},
-            /*_ => {
+            _ => {
                 return Err(ServiceError::InvalidInput);
-            }*/
+            }
         }
 
         let fd = self.dev.as_raw_fd();
@@ -159,5 +160,37 @@ impl ServiceContext {
         self.submit_code(code, backend, Command::RunCode, ExecEnv {
             args: args
         })
+    }
+
+    pub fn map_cwa_api(&self, name: &str) -> Option<u32> {
+        #[repr(C)]
+        struct Request {
+            name: *const u8,
+            len: usize
+        }
+
+        let name = name.as_bytes();
+        if name.len() == 0 {
+            return None;
+        }
+
+        let req = Request {
+            name: &name[0],
+            len: name.len()
+        };
+        let fd = self.dev.as_raw_fd();
+        let ret = unsafe {
+            ::libc::ioctl(
+                fd,
+                Command::MapCwaApi as i32 as ::libc::c_ulong,
+                &req as *const Request as ::libc::c_ulong
+            )
+        };
+
+        if ret < 0 {
+            None
+        } else {
+            Some(ret as u32)
+        }
     }
 }

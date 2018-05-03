@@ -8,6 +8,8 @@ use std::io::Read;
 use wasm_core::trans::config::ModuleConfig;
 use wasm_core::hetrans::translate_module;
 
+use cvctl::cwa_trans::Mapper;
+
 fn main() {
     let mut args = env::args();
     args.next().unwrap();
@@ -20,12 +22,13 @@ fn main() {
 
     f.read_to_end(&mut code).unwrap();
     let module = wasm_core::trans::translate_module_raw(code.as_slice(), cfg);
-    let entry_fn = module.lookup_exported_func("__cv_main").expect("Entry function `__cv_main` not found");
-
-    let result = translate_module(&module, entry_fn);
-    eprintln!("Code length: {}", result.len());
+    let entry_fn = module.lookup_exported_func("__app_main").expect("Entry function `__cv_main` not found");
 
     let mut ctx = cvctl::service::ServiceContext::connect().unwrap();
+
+    let result = translate_module(&module, entry_fn, &mut Mapper::new(&ctx));
+    eprintln!("Code length: {}", result.len());
+
     ctx.load_code(&result, cvctl::service::Backend::HexagonE).unwrap();
 
     eprintln!("Code loaded");
