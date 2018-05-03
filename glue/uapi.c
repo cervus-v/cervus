@@ -17,6 +17,7 @@
 
 #define CERVUS_LOAD_CODE 0x1001
 #define CERVUS_RUN_CODE 0x1002
+#define CERVUS_MAP_CWA_API 0x1003
 #define EXEC_HEXAGON_E 0x01
 
 const char *CLASS_NAME = "cervus";
@@ -44,6 +45,11 @@ extern int run_code_in_hexagon_e(
     size_t stack_len,
     size_t call_stack_len,
     void *kctx
+);
+
+extern int map_cwa_api(
+    const char *name_base,
+    size_t name_len
 );
 
 struct execution_info {
@@ -281,12 +287,47 @@ static ssize_t handle_run_code(struct file *_file, void *arg) {
     return ret;
 }
 
+struct map_cwa_api_request {
+    const char __user *name;
+    size_t len;
+};
+
+static ssize_t handle_map_cwa_api(struct file *_file, void *arg) {
+    struct map_cwa_api_request req;
+    char *name_buf;
+    int ret;
+
+    if(copy_from_user(&req, arg, sizeof(req))) {
+        return -EFAULT;
+    }
+
+    if(req.len > 128) {
+        return -EINVAL;
+    }
+
+    name_buf = kmalloc(req.len, GFP_KERNEL);
+    if(!name_buf) {
+        return -ENOMEM;
+    }
+
+    if(copy_from_user(name_buf, req.name, req.len)) {
+        kfree(name_buf);
+        return -EFAULT;
+    }
+
+    ret = map_cwa_api(name_buf, req.len);
+    kfree(name_buf);
+
+    return ret;
+}
+
 #define DISPATCH_CMD(cmd, f) case cmd: return (f)(file, (void *) arg);
 
 static ssize_t wd_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
     switch(cmd) {
         DISPATCH_CMD(CERVUS_LOAD_CODE, handle_load_code)
         DISPATCH_CMD(CERVUS_RUN_CODE, handle_run_code)
+        DISPATCH_CMD(CERVUS_MAP_CWA_API, handle_map_cwa_api)
         default:
             return -EINVAL;
     }
