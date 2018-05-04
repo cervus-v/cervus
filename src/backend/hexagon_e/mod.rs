@@ -129,10 +129,10 @@ impl<'a, C: Context + 'a> Environment for ExecutionEnv<'a, C> {
     }
 
     #[inline]
-    fn trace_opcode(&self, _: &::hexagon_e::module::Opcode) -> ExecuteResult<()> {
+    fn trace_branch(&self, _target: usize) -> ExecuteResult<()> {
         let count = self.resched_counter.get();
 
-        if count >= 100000 {
+        if count >= 10000 {
             self.resched_counter.set(0);
             self.context.tick()?;
         } else {

@@ -14,4 +14,4 @@ opt-level = 2
 lto = true
 
 [dependencies]
-hexagon-e = "0.1.4"
+hexagon-e = "0.1.5"
