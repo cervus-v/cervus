@@ -3,13 +3,15 @@ use error::KernelResult;
 static mut GLOBAL_CONTEXT: GlobalContext = unsafe { uninitialized() };
 
 pub struct GlobalContext {
-    pub system_service_registry: ::system_service::Registry
+    pub system_service_registry: ::system_service::Registry,
+    pub native_invoke_registry: ::api::Registry
 }
 
 impl GlobalContext {
     fn new() -> KernelResult<GlobalContext> {
         Ok(GlobalContext {
-            system_service_registry: ::system_service::Registry::new()?
+            system_service_registry: ::system_service::Registry::new()?,
+            native_invoke_registry: ::api::Registry::new()
         })
     }
 }

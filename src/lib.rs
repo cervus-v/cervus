@@ -26,6 +26,7 @@ pub mod system_service;
 pub mod slab;
 pub mod resource;
 pub mod url;
+pub mod api;
 
 use allocator::KernelAllocator;
 
@@ -38,6 +39,11 @@ use backend::common::*;
 #[no_mangle]
 pub extern "C" fn panic_fmt(_args: core::fmt::Arguments, _file: &'static str, _line: u32) -> ! {
     linux::kernel_panic(_file);
+}
+
+#[lang = "oom"]
+fn oom() -> ! {
+    linux::kernel_panic("cervus: Out of memory");
 }
 
 fn run_in_usermode_context<B: Backend<Config = G>, G>(
