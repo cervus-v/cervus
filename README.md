@@ -20,7 +20,8 @@ Cervus implements a WebAssembly "usermode" on top of the Linux kernel (which tri
 
 - An interpreter based on [HexagonE](https://github.com/losfair/hexagon-e)
 - Binary translation & loading based on [wasm-core](https://github.com/losfair/wasm-core)
-- Logging
+- Most of CommonWA ("everything is a URL", file I/O, command-line arguments)
+- IPC (only broadcast supported by now, with URL prefix `ipc-broadcast://`)
 
 **Not working:**
 
@@ -40,37 +41,43 @@ Requirements:
 - gnu make & gcc
 
 ```
-xargo build --target x86_64-unknown-none-gnu --release
-cd glue
-./build.sh
-sudo insmod cervus.ko
+./build_all.sh
+sudo insmod glue/cervus.ko
 ```
 
-### Loader
+### Loader (cvctl)
 
-This installs the `cvload` binary:
+This installs the `cvload` and `cvrun` binaries:
 
 ```
-cd loader
+cd cvctl
 cargo install
 ```
 
 ### Applications
 
-`usermode/examples` contains a few examples for WebAssembly applications running in Cervus.
+Cervus implements most of [CommonWA](https://github.com/CommonWA/cwa-spec) (tracked at [#2](https://github.com/cervus-v/cervus/issues/2)), whose examples can be found at [cwa-rs/examples](https://github.com/CommonWA/cwa-rs/tree/master/examples).
 
-For example, to build and load the `hello_world` example:
-
-```
-cd usermode
-cargo build --example hello_world --target wasm32-unknown-unknown --release
-sudo cvload target/wasm32-unknown-unknown/release/examples/hello_world.wasm
-```
-
-And then run `dmesg | tail`. If everything works well, you should see something like:
+For example, to build and run the `cat` example:
 
 ```
-[132382.502249] cervus: (20277) [INFO] Hello, world!
+sudo chmod 666 /dev/cvctl
+cd cwa-rs
+cargo build --target wasm32-unknown-unknown --release --example cat
+cvrun target/wasm32-unknown-unknown/release/examples/cat.wasm file:///etc/lsb-release
+```
+
+To launch an IPC broadcast sender and then read from it:
+
+```
+cargo build --target wasm32-unknown-unknown --release --example broadcast_sender
+cvrun target/wasm32-unknown-unknown/release/examples/broadcast_sender.wasm your_broadcast
+```
+
+(in another terminal)
+
+```
+cvrun target/wasm32-unknown-unknown/release/examples/cat.wasm ipc-broadcast://your_broadcast | dd of=/dev/null bs=4K
 ```
 
 ## Contribute
@@ -83,9 +90,9 @@ Since Cretonne supports `no_std`, this should be relatively easy compared to oth
 
 Interface with the rest of the system by implementing the `Backend` trait, for which the interpreter-based backend located in `src/backend/hexagon_e` is a good example to start with.
 
-- File system API
+- Network API
 
-Blocking filesystem I/O APIs can be added as virtual system calls, which locate in `src/env.rs`.
+Blocking network APIs can be added as virtual system calls.
 
 ## License
 
