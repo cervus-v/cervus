@@ -10,7 +10,7 @@ impl_ni_common!(
         let len = args[2] as u32 as usize;
 
         let out = mem.checked_slice_mut(mem_begin, mem_begin + len)?;
-        ctx.resources.get_mut(id)?.read(out)
+        ctx.resources.get_mut(id)?.read(out)?
             .map(|n| Some(n as i64))
             .or_else(|_| Ok(Some(CwaError::Unknown.status() as i64)))
     }
@@ -25,7 +25,7 @@ impl_ni_common!(
         let len = args[2] as u32 as usize;
 
         let data = mem.checked_slice(mem_begin, mem_begin + len)?;
-        ctx.resources.get_mut(id)?.write(data)
+        ctx.resources.get_mut(id)?.write(data)?
             .map(|n| Some(n as i64))
             .or_else(|_| Ok(Some(CwaError::Unknown.status() as i64)))
     }
@@ -42,7 +42,7 @@ impl_ni_common!(
 
         Ok(Some(match ::url::Url::parse(u) {
             Ok(u) => {
-                match u.open(ctx.kctx) {
+                match u.open(ctx.kctx)? {
                     Ok(f) => ctx.add_resource(f) as i64,
                     Err(e) => e.status() as i64
                 }

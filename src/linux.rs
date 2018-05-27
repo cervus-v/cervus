@@ -13,6 +13,9 @@ extern "C" {
     pub fn lapi_semaphore_up(sem: *mut RawSemaphore);
     pub fn lapi_semaphore_down(sem: *mut RawSemaphore) -> i32;
 
+    pub fn lapi_oom_score_adj_current(score: i16);
+    pub fn lapi_get_total_ram_bytes() -> usize;
+
     pub fn lapi_env_get_n_args(kctx: *mut u8) -> u32;
     pub fn lapi_env_read_arg(kctx: *mut u8, id: u32, out: *mut u8, max_len: usize) -> isize;
 

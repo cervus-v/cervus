@@ -41,6 +41,7 @@ pub trait Backend: Sized {
     ) -> BackendResult<()>;
 }
 
+#[derive(Debug)]
 pub struct NativeInvokePolicy {
     pub n_args: usize
 }

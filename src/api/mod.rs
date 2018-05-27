@@ -27,6 +27,7 @@ mod env;
 mod startup;
 mod resource;
 mod io;
+mod ipc;
 
 use alloc::BTreeMap;
 use alloc::boxed::Box;

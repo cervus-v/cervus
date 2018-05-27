@@ -3,6 +3,7 @@
 #![feature(global_allocator, allocator_api)]
 #![feature(const_fn)]
 #![feature(untagged_unions)]
+#![feature(nll)]
 #![no_std]
 
 extern crate hexagon_e;
@@ -27,6 +28,9 @@ pub mod slab;
 pub mod resource;
 pub mod url;
 pub mod api;
+pub mod ipc;
+pub mod schemes;
+pub mod memory_pressure;
 
 use allocator::KernelAllocator;
 
@@ -37,12 +41,13 @@ use backend::common::*;
 
 #[lang = "panic_fmt"]
 #[no_mangle]
-pub extern "C" fn panic_fmt(_args: core::fmt::Arguments, _file: &'static str, _line: u32) -> ! {
+pub extern "C" fn __cv_panic_fmt(_args: core::fmt::Arguments, _file: &'static str, _line: u32) -> ! {
     linux::kernel_panic(_file);
 }
 
 #[lang = "oom"]
-fn oom() -> ! {
+#[no_mangle]
+pub extern "C" fn __cv_oom() -> ! {
     linux::kernel_panic("cervus: Out of memory");
 }
 
@@ -100,6 +105,9 @@ pub extern "C" fn run_code_in_hexagon_e(
 
     match result {
         Ok(_) => 0,
-        Err(e) => e.status()
+        Err(e) => {
+            println!("execution terminated with error: {:?}", e);
+            e.status()
+        }
     }
 }

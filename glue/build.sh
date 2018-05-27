@@ -5,7 +5,7 @@ make clean
 rm -r rkm || true
 mkdir rkm
 cd rkm
-cp ../../target/x86_64-unknown-none-gnu/release/libcervus.a ./
+cp ../../target/x86_64-unknown-kernel/release/libcervus.a ./
 ar x libcervus.a
 rm libcervus.a
 cd ..

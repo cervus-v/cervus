@@ -7,6 +7,16 @@ pub struct Slab<T> {
     release_pool: VecDeque<usize>
 }
 
+impl<T: Clone> Clone for Slab<T> {
+    fn clone(&self) -> Self {
+        Slab {
+            len: self.len,
+            storage: self.storage.clone(),
+            release_pool: self.release_pool.clone()
+        }
+    }
+}
+
 impl<T> Slab<T> {
     pub fn new() -> Slab<T> {
         Slab {
@@ -68,5 +78,15 @@ impl<T> Slab<T> {
 
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    pub fn for_each<E, F: FnMut(&T) -> Result<(), E>>(&self, mut f: F) -> Result<(), E> {
+        for elem in &self.storage {
+            if let Some(ref v) = *elem {
+                f(v)?;
+            }
+        }
+
+        Ok(())
     }
 }

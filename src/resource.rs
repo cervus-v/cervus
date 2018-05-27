@@ -1,5 +1,7 @@
 use linux;
 use linux::RawFile;
+use error::*;
+use memory_pressure::MemoryPressureHandle;
 
 #[derive(Copy, Clone, Debug)]
 #[repr(i32)]
@@ -17,16 +19,19 @@ impl IoError {
 pub type IoResult<T> = Result<T, IoError>;
 
 pub trait Resource {
-    fn mem_pressure(&self) -> usize;
-    fn read(&mut self, out: &mut [u8]) -> IoResult<usize>;
-    fn write(&mut self, data: &[u8]) -> IoResult<usize>;
+    /// Memory pressure (should be equivalent to the estimated size in bytes)
+    fn init_mem_pressure(&mut self, _pressure: MemoryPressureHandle) {}
+
+    fn read(&mut self, out: &mut [u8]) -> KernelResult<IoResult<usize>>;
+    fn write(&mut self, data: &[u8]) -> KernelResult<IoResult<usize>>;
 }
 
 pub struct LinuxFile {
     kctx: *mut u8,
     handle: *mut RawFile,
     need_close: bool,
-    offset: i64
+    offset: i64,
+    pressure: Option<MemoryPressureHandle>
 }
 
 impl Drop for LinuxFile {
@@ -48,22 +53,24 @@ impl LinuxFile {
                 kctx: kctx,
                 handle: f,
                 need_close: need_close,
-                offset: 0
+                offset: 0,
+                pressure: None
             })
         }
     }
 }
 
 impl Resource for LinuxFile {
-    fn mem_pressure(&self) -> usize {
-        5
+    fn init_mem_pressure(&mut self, p: MemoryPressureHandle) {
+        p.inc(16);
+        self.pressure = Some(p);
     }
 
-    fn read(&mut self, out: &mut [u8]) -> IoResult<usize> {
+    fn read(&mut self, out: &mut [u8]) -> KernelResult<IoResult<usize>> {
         let len = out.len();
 
         if len == 0 {
-            return Ok(0);
+            return Ok(Ok(0));
         }
 
         let ret = unsafe {
@@ -75,19 +82,19 @@ impl Resource for LinuxFile {
                 self.offset
             )
         };
-        if ret < 0 {
+        Ok(if ret < 0 {
             Err(IoError::Generic)
         } else {
             self.offset += ret as i64;
             Ok(ret as usize)
-        }
+        })
     }
 
-    fn write(&mut self, data: &[u8]) -> IoResult<usize> {
+    fn write(&mut self, data: &[u8]) -> KernelResult<IoResult<usize>> {
         let len = data.len();
 
         if len == 0 {
-            return Ok(0);
+            return Ok(Ok(0));
         }
 
         let ret = unsafe {
@@ -99,11 +106,11 @@ impl Resource for LinuxFile {
                 self.offset
             )
         };
-        if ret < 0 {
+        Ok(if ret < 0 {
             Err(IoError::Generic)
         } else {
             self.offset += ret as i64;
             Ok(ret as usize)
-        }
+        })
     }
 }

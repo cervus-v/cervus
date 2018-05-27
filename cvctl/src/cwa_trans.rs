@@ -31,6 +31,7 @@ impl<'a> MapNativeInvoke for Mapper<'a> {
             self.cache.insert(field.to_string(), v);
             Some(v)
         } else {
+            eprintln!("Error: Unable to map native invoke: {} {}", module, field);
             None
         }
     }

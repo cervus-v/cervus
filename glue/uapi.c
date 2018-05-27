@@ -88,7 +88,7 @@ static int do_execution(struct execution_info *einfo, struct kernel_context *kct
             ret = run_code_in_hexagon_e(
                 einfo -> code,
                 einfo -> len,
-                1048576,
+                1048576 * 4,
                 1048576 * 16,
                 16384,
                 1024,

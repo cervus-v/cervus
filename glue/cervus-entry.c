@@ -2,6 +2,8 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/sched.h>
+#include <linux/signal.h>
+#include <linux/mm.h>
 #include <linux/sched/signal.h>
 #include <linux/semaphore.h>
 #include <linux/uaccess.h>
@@ -47,6 +49,23 @@ void lapi_kfree(unsigned char *ptr) {
 
 void lapi_bug(void) {
     panic("Cervus has panicked unexpectedly. This is a bug.\n");
+}
+
+unsigned long lapi_get_total_ram_bytes(void) {
+    return totalram_pages * PAGE_SIZE;
+}
+
+void lapi_oom_score_adj_current(short score) {
+    unsigned long irq_flags;
+
+    // TODO: Is the locking correct?
+    spin_lock_irqsave(&current -> sighand -> siglock, irq_flags);
+
+    // TODO: Check oom_score_adj_min?
+    // TODO: Do what __set_oom_adj does?
+
+    current -> signal -> oom_score_adj = score;
+    spin_unlock_irqrestore(&current -> sighand -> siglock, irq_flags);
 }
 
 static const char * get_log_prefix_for_level(int level) {
