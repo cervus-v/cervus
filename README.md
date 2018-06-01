@@ -1,5 +1,7 @@
 # cervus
 
+[![Join the chat at https://gitter.im/cervus-v/cervus](https://badges.gitter.im/cervus-v/cervus.svg)](https://gitter.im/cervus-v/cervus?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 A WebAssembly subsystem for Linux.
 
 ![Screenshot](https://i.imgur.com/QFvUibQ.png)
