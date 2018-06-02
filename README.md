@@ -1,12 +1,14 @@
 # cervus
 
+[![Join the chat at https://gitter.im/cervus-v/cervus](https://badges.gitter.im/cervus-v/cervus.svg)](https://gitter.im/cervus-v/cervus?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 A WebAssembly subsystem for Linux.
 
 ![Screenshot](https://i.imgur.com/QFvUibQ.png)
 
-## What's it?
+## What is it?
 
-Cervus implements a WebAssembly "usermode" on top of the Linux kernel (which tries to follows the [CommonWA](https://github.com/CommonWA/cwa-spec) specification), enabling wasm applications to run directly in ring 0, while still ensuring safety and security.
+Cervus implements a WebAssembly "usermode" on top of the Linux kernel (which tries to follow the [CommonWA](https://github.com/CommonWA/cwa-spec) specification), enabling wasm applications to run directly in ring 0, while still ensuring safety and security.
 
 ## But why?
 
