@@ -3,9 +3,12 @@
 
 #include <linux/fs.h>
 
-struct user_string {
+#define MAX_N_ARGS 256
+#define MAX_ARG_LEN 1024
+
+struct kernel_string {
     unsigned long len;
-    const char __user *data;
+    char *data;
 };
 
 struct kernel_context {
@@ -15,7 +18,7 @@ struct kernel_context {
     struct file *stderr;
 
     int n_args;
-    const struct user_string __user *args;
+    struct kernel_string *args;
 };
 
 #endif

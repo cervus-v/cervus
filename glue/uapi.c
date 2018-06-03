@@ -13,6 +13,7 @@
 #include <linux/security.h>
 #include <linux/kthread.h>
 
+#include "vmm.h"
 #include "kctx.h"
 
 #define CERVUS_LOAD_CODE 0x1001
@@ -56,7 +57,7 @@ struct execution_info {
     int executor;
     uid_t euid;
     int n_args;
-    const struct user_string __user *args;
+    struct kernel_string args[MAX_N_ARGS];
     size_t len;
     char code[0];
 };
@@ -66,6 +67,12 @@ static inline struct execution_info * einfo_alloc(size_t code_len) {
 }
 
 static inline void einfo_free(struct execution_info *einfo) {
+    int i;
+
+    for(i = 0; i < einfo -> n_args; i++) {
+        kfree(einfo -> args[i].data);
+    }
+
     vfree(einfo);
 }
 
@@ -194,15 +201,17 @@ struct load_code_info {
     int executor;
 
     int n_args;
-    const struct user_string __user *args;
+    const struct kernel_string __user *args;
 
     unsigned long len;
     void *addr;
 };
 
 static struct execution_info * load_execution_info_from_user(void *lci_user) {
+    int i, j;
     struct load_code_info lci;
     struct execution_info *einfo;
+    char *buf;
     const struct cred *cred;
 
     if(copy_from_user(&lci, lci_user, sizeof(struct load_code_info))) {
@@ -218,18 +227,55 @@ static struct execution_info * load_execution_info_from_user(void *lci_user) {
 
     einfo -> executor = lci.executor;
     einfo -> euid = cred -> euid.val;
-    einfo -> n_args = lci.n_args;
-    einfo -> args = lci.args;
     einfo -> len = lci.len;
     if(copy_from_user(einfo -> code, lci.addr, lci.len)) {
         einfo_free(einfo);
         return ERR_PTR(-EFAULT);
     }
 
+    einfo -> n_args = lci.n_args;
+    if(einfo -> n_args > MAX_N_ARGS) {
+        einfo_free(einfo);
+        return ERR_PTR(-EINVAL);
+    }
+
+    if(copy_from_user(einfo -> args, lci.args, sizeof(struct kernel_string) * einfo -> n_args)) {
+        einfo_free(einfo);
+        return ERR_PTR(-EFAULT);
+    }
+
+    for(i = 0; i < einfo -> n_args; i++) {
+        if(einfo -> args[i].len > MAX_ARG_LEN) {
+            einfo_free(einfo);
+            return ERR_PTR(-EINVAL);
+        }
+    }
+
+    for(i = 0; i < einfo -> n_args; i++) {
+        buf = kmalloc(einfo -> args[i].len, GFP_KERNEL);
+        if(buf == NULL) {
+            for(j = 0; j < i; j++) {
+                kfree(einfo -> args[j].data);
+            }
+            return ERR_PTR(-ENOMEM);
+        }
+
+        for(j = 0; j < einfo -> args[i].len; j++) {
+            buf[j] = 0;
+        }
+        if(copy_from_user(buf, einfo -> args[i].data, einfo -> args[i].len)) {
+            printk(KERN_INFO "cervus: warning: some bytes cannot be copied (addr: %p)\n", einfo -> args[i].data);
+        }
+        einfo -> args[i].data = buf;
+    }
+
     return einfo;
 }
 
 static ssize_t handle_load_code(struct file *_file, void *arg) {
+    return -EINVAL;
+
+    /*
     struct execution_info *einfo;
 
     // Only root can load code to run standalone because it will run with uid = 0
@@ -254,6 +300,11 @@ static ssize_t handle_load_code(struct file *_file, void *arg) {
     }
 
     return 0;
+    */
+}
+
+static int release_user_mappings(void) {
+    return vm_munmap(0, TASK_SIZE);
 }
 
 static ssize_t handle_run_code(struct file *_file, void *arg) {
@@ -261,9 +312,28 @@ static ssize_t handle_run_code(struct file *_file, void *arg) {
     struct execution_info *einfo;
     struct kernel_context kctx;
 
+    if(atomic_read(&current -> mm -> mm_count) != 1) {
+        printk(KERN_INFO "cervus: unique ownership is required on process memory\n");
+        return -EINVAL;
+    }
+
     einfo = load_execution_info_from_user(arg);
     if(IS_ERR(einfo)) {
         return PTR_ERR(einfo);
+    }
+
+    ret = release_user_mappings();
+    if(ret < 0) {
+        printk(KERN_INFO "cervus: unable to unmap user memory: %d\n", ret);
+        einfo_free(einfo);
+        do_exit(1 << 8);
+    }
+
+    ret = cv_vmm_init();
+    if(ret < 0) {
+        printk(KERN_INFO "cervus: vmm initialization failed with code %d\n", ret);
+        einfo_free(einfo);
+        do_exit(1 << 8);
     }
 
     init_kctx(&kctx, einfo);
@@ -277,14 +347,26 @@ static ssize_t handle_run_code(struct file *_file, void *arg) {
     kctx.stderr = fget_raw(2);
     if(IS_ERR(kctx.stderr)) kctx.stderr = NULL;
 
+    BUG_ON(!try_module_get(THIS_MODULE));
+
+    task_lock(current);
+    if(einfo -> n_args > 0) {
+        int copy_size = einfo -> args[0].len < (TASK_COMM_LEN - 1) ? einfo -> args[0].len : (TASK_COMM_LEN - 1);
+        memcpy(current -> comm, einfo -> args[0].data, copy_size);
+        current -> comm[copy_size] = 0;
+    }
+    task_unlock(current);
+
     ret = do_execution(einfo, &kctx);
+    module_put(THIS_MODULE);
+
     einfo_free(einfo);
 
     if(kctx.stdin) fput(kctx.stdin);
     if(kctx.stdout) fput(kctx.stdout);
     if(kctx.stderr) fput(kctx.stderr);
 
-    return ret;
+    do_exit((ret & 0xff) << 8);
 }
 
 struct map_cwa_api_request {

@@ -95,7 +95,6 @@ unsigned int lapi_env_get_n_args(void *raw_kctx) {
 }
 
 ssize_t lapi_env_read_arg(void *raw_kctx, unsigned int id, char *out, size_t max_len) {
-    struct user_string arg;
     size_t copy_len;
     struct kernel_context *kctx = raw_kctx;
 
@@ -103,14 +102,8 @@ ssize_t lapi_env_read_arg(void *raw_kctx, unsigned int id, char *out, size_t max
         return -1;
     }
 
-    if(copy_from_user(&arg, kctx -> args + id, sizeof(const struct user_string))) {
-        return -1;
-    }
-
-    copy_len = arg.len < max_len ? arg.len : max_len;
-    if(copy_from_user(out, arg.data, copy_len)) {
-        return -1;
-    }
+    copy_len = kctx -> args[id].len < max_len ? kctx -> args[id].len : max_len;
+    memcpy(out, kctx -> args[id].data, copy_len);
     
     return copy_len;
 }

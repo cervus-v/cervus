@@ -1,5 +1,5 @@
 obj-m += cervus.o
-cervus-objs += cervus-entry.o uapi.o unwinding.o $(OBJ_LIST)
+cervus-objs += cervus-entry.o uapi.o unwinding.o vmm.o $(OBJ_LIST)
 HDR_PATH := /lib/modules/$(shell uname -r)/build
 
 all:
